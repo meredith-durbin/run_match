@@ -226,7 +226,7 @@ if __name__ == '__main__':
     param_cycle = (dmod_cycle * filt_cycle * feh_cycle * age_cycle).by_key()
     inlist = list(zip(*[param_cycle['dmod'], param_cycle['filt'], param_cycle['ages'], param_cycle['fehs']]))
     if not os.path.isfile(os.path.join(os.get_cwd(), 'makefake.out')):
-        makefake(os.get_cwd(), 'makefake.out', snr=5)
+        makefake(os.getcwd(), 'makefake.out', snr=5)
     for i in range(1):
         print('Beginning run {}'.format(i+1))
         #for filt in ['WFIRST_X606', 'WFIRST_X625', 'WFIRST_X670', 'WFIRST_Z087']:
