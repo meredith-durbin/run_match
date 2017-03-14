@@ -170,7 +170,7 @@ def check_clobber_condition(out_dir, clobber):
         clobber_condition = os.path.exists(os.path.join(out_dir,'zcombine.out'))
     return clobber_condition
 
-def run(inlist, clobber=False, systematics=False, makenewfake=False):
+def run(inlist, clobber=True, systematics=False, makenewfake=False):
     dmod, filter1, age, feh = inlist
     if (dmod < 28.5):
         dist = '4Mpc'
