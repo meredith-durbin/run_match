@@ -90,3 +90,5 @@ ENV/
 
 # other
 *DS_Store
+
+WFIRST_*
