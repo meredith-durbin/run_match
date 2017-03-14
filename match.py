@@ -185,7 +185,7 @@ def run(inlist, clobber=True, systematics=False, makenewfake=False):
         age_spacing = 0.05
     else:
         age_spacing = 0.1
-    out_dir = os.path.join(filter1, dist, '{:.2f}yr'.format(age), '{:.2f}dex'.format(feh))
+    out_dir = os.path.join(os.getcwd(), filter1, dist, '{:.2f}yr'.format(age), '{:.2f}dex'.format(feh))
     os.makedirs(out_dir, exist_ok=True)
     clobber_condition = check_clobber_condition(out_dir, clobber)
     if not clobber_condition:
