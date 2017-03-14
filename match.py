@@ -201,8 +201,11 @@ def run(inlist, clobber=True, systematics=False, makenewfake=False):
         write_par('calcsfh_template.par', 'calcsfh.par', out_dir, dmod, filter1,
                   age=age, feh=feh, age_spacing=age_spacing)
         fake(out_dir, 'fake.fakepar', 'fake.out', 'makefake.out')
+        print('fake ' + runstr)
         calcsfh(out_dir, 'calcsfh.par', 'makefake.out', 'fake.out', 'sfh.out')
+        print('calcsfh ' + runstr)
         zcombine(out_dir, 'sfh.out', 'zcombine.out')
+        print('zcombine ' + runstr)
     else:
         print('  Already ran ' + runstr)
     if systematics:
