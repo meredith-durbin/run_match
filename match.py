@@ -58,7 +58,7 @@ def make_age_grid(target_age, num_bins=15, spacing=0.1):
     return gridstr
 
 # fake test4.fakepar fake.out -fake=fake.txt
-def fake(out_dir, fakepar, outfile, infile, verbose=False, mist=True):
+def fake(out_dir, fakepar, outfile, infile, verbose=True, mist=True):
     parpath = os.path.join(out_dir, fakepar)
     inpath = os.path.join(out_dir, infile)
     outpath = os.path.join(out_dir, outfile)
@@ -71,7 +71,7 @@ def fake(out_dir, fakepar, outfile, infile, verbose=False, mist=True):
         print(output, err)
 
 # calcsfh calcsfh.par makefake.out fake.out sfh.out -MIST_fast
-def calcsfh(out_dir, parfile, fakefile, makefakefile, outfile, verbose=False, mist=True):
+def calcsfh(out_dir, parfile, fakefile, makefakefile, outfile, verbose=True, mist=True):
     #sfhpath = os.path.join(match_dir, 'bin/calcsfh')
     parpath = os.path.join(out_dir, parfile)
     fakepath = os.path.join(out_dir, fakefile)
@@ -94,7 +94,7 @@ def calcsfh(out_dir, parfile, fakefile, makefakefile, outfile, verbose=False, mi
     ps.communicate()
 
 # zcombine sfh.out
-def zcombine(out_dir, sfhfile, outfile, verbose=False):
+def zcombine(out_dir, sfhfile, outfile, verbose=True):
     sfhpath = os.path.join(out_dir, sfhfile)
     outpath = os.path.join(out_dir, outfile)
     with open(outpath, 'w') as out:
@@ -201,11 +201,8 @@ def run(inlist, clobber=True, systematics=False, makenewfake=False):
         write_par('calcsfh_template.par', 'calcsfh.par', out_dir, dmod, filter1,
                   age=age, feh=feh, age_spacing=age_spacing)
         fake(out_dir, 'fake.fakepar', 'fake.out', 'makefake.out')
-        print('fake ' + runstr)
         calcsfh(out_dir, 'calcsfh.par', 'makefake.out', 'fake.out', 'sfh.out')
-        print('calcsfh ' + runstr)
         zcombine(out_dir, 'sfh.out', 'zcombine.out')
-        print('zcombine ' + runstr)
     else:
         print('  Already ran ' + runstr)
     if systematics:
