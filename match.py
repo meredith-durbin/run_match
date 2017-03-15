@@ -13,7 +13,7 @@ import multiprocessing as mp
 
 # make sure match binaries are accessible
 if 'match2.6' not in os.environ['PATH']:
-    os.environ['PATH'] += ":/astro/apps6/opts/match2.6/bin"
+    os.environ['PATH'] += ":/astro/store/phat2/projects/src/match2.6/bin"
 
 zc_names = ['age_low', 'age_high', 'dmod', 'sfr', 'sfr_p', 'sfr_m',
             'feh', 'feh_p', 'feh_m', 'dfeh', 'dfeh_p', 'dfeh_m',
