@@ -186,7 +186,6 @@ def run(inlist, clobber=True, systematics=False, makenewfake=False):
     else:
         age_spacing = 0.1
     out_dir = os.path.join(os.getcwd(), filter1, dist, '{:.2f}yr'.format(age), '{:.2f}dex'.format(feh))
-    print(out_dir)
     os.makedirs(out_dir, exist_ok=True)
     clobber_condition = check_clobber_condition(out_dir, clobber)
     if not clobber_condition:
@@ -220,18 +219,17 @@ def run(inlist, clobber=True, systematics=False, makenewfake=False):
                     zcombine(out_dir, new_sfh_out, new_zcombine_out)
 
 if __name__ == '__main__':
-    dmod_cycle = cycler(dmod=[28.0105, 30]) # [28.0105, 28.8906, 29.5155, 30]
+    dmod_cycle = cycler(dmod=[28.0105, 28.8906, 29.5155, 30]) 
     filt_cycle = cycler(filt=['WFIRST_X606', 'WFIRST_X625'])
-    age_cycle = cycler(ages=[8., 9., 10.])
-    feh_cycle = cycler(fehs=[-2., -1., 0.])
+    age_cycle = cycler(ages=[8.5, 9., 9.5, 9.8, 10., 10.1])
+    feh_cycle = cycler(fehs=[-2.3, -1.8, -1.3, -0.8, -0.3, 0., 0.1])
     param_cycle = (dmod_cycle * filt_cycle * feh_cycle * age_cycle).by_key()
     inlist = list(zip(*[param_cycle['dmod'], param_cycle['filt'], param_cycle['ages'], param_cycle['fehs']]))
     if not os.path.isfile(os.path.join(os.getcwd(), 'makefake.out')):
         makefake(os.getcwd(), 'makefake.out', snr=5)
-    for i in range(1):
+    for i in range(20):
         print('Beginning run {}'.format(i+1))
-        #for filt in ['WFIRST_X606', 'WFIRST_X625', 'WFIRST_X670', 'WFIRST_Z087']:
-        p = mp.Pool(int(mp.cpu_count()/2))
+        p = mp.Pool(int(mp.cpu_count()/4))
         p.map(run, inlist)
         p.close()
         p.join()
