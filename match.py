@@ -221,7 +221,7 @@ def run(inlist, clobber=True, systematics=False, makenewfake=False):
 if __name__ == '__main__':
     dmod_cycle = cycler(dmod=[28.0105, 28.8906, 29.5155, 30]) 
     filt_cycle = cycler(filt=['WFIRST_X606', 'WFIRST_X625'])
-    age_cycle = cycler(ages=[8.5, 9., 9.5, 9.8, 10., 10.1])
+    age_cycle = cycler(ages=[8.5, 9., 9.5, 9.8, 10.])
     feh_cycle = cycler(fehs=[-2.3, -1.8, -1.3, -0.8, -0.3, 0., 0.1])
     param_cycle = (dmod_cycle * filt_cycle * feh_cycle * age_cycle).by_key()
     inlist = list(zip(*[param_cycle['dmod'], param_cycle['filt'], param_cycle['ages'], param_cycle['fehs']]))
