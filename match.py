@@ -19,10 +19,40 @@ zc_names = ['age_low', 'age_high', 'dmod', 'sfr', 'sfr_p', 'sfr_m',
             'feh', 'feh_p', 'feh_m', 'dfeh', 'dfeh_p', 'dfeh_m',
             'massfrac', 'massfrac_p', 'massfrac_m']
 
+zp1 = 30.5
+zp2 = 29.5
+
 # makefake 100000 15 28 -0.5 5 29 28 -snr=5
 def makefake(out_dir, outfile, nstars=100000, mag_low=15, 
-             mag_high=30, color_blue=-0.5, color_red=5, 
-             completeness_1=29, completeness_2=28, **kwargs):
+             mag_high=31, color_blue=-0.5, color_red=5, 
+             completeness_1=zp1, completeness_2=zp2, **kwargs):
+    '''Wrapper around makefake
+    
+    Params:
+
+        out_dir : path
+            Directory to write makefake output to
+        outfile : str
+            Name of makefake output file
+        nstars : int
+            Number of fake stars to make
+        mag_low : scalar
+            Minimum (brightest) magnitude for fake stars
+        mag_high : scalar
+            Maximum (dimmest) magnitude for fake stars
+        color_blue : scalar
+            Bluest allowed color for fake stars
+        color_red : scalar
+            Reddest allowed color for fake stars
+        completeness_1 : scalar
+            50% completeness limit for blue filter
+        completeness_2 : scalar
+            50% completeness limit for red filter
+        **kwargs : optional
+            Extra flags for makefake (see match readme)
+
+    Outputs: fake artificial star test file
+    '''
     params = list(np.array([nstars, mag_low, mag_high, color_blue, color_red, 
                   completeness_1, completeness_2]).astype(str))
     flags = ['-{}={}'.format(k, v) for k, v in kwargs.items()]
@@ -35,7 +65,7 @@ def makefake(out_dir, outfile, nstars=100000, mag_low=15,
     print('{} fake stars made'.format(nstars))
 
 def write_par(infile, outfile, out_dir, dist, filter1, filter2='WFIRST_H158',
-              zp1=29, zp2=28, age=9.7, feh=-1.75, age_spacing=0.1):
+              zp1=zp1, zp2=zp2, age=9.7, feh=-1.75, age_spacing=0.1):
     with open(infile) as f:
         template = f.read()
     if 'fake' in infile:
@@ -219,8 +249,8 @@ def run(inlist, clobber=True, systematics=False, makenewfake=False):
                     zcombine(out_dir, new_sfh_out, new_zcombine_out)
 
 if __name__ == '__main__':
-    dmod_cycle = cycler(dmod=[28.0105, 28.8906, 29.5155, 30]) 
-    filt_cycle = cycler(filt=['WFIRST_X606', 'WFIRST_X625'])
+    dmod_cycle = cycler(dmod=[29.5155, 30]) # 28.0105, 28.8906, 
+    filt_cycle = cycler(filt=['WFIRST_X625'])
     age_cycle = cycler(ages=[8.5, 9., 9.5, 9.8, 10.])
     feh_cycle = cycler(fehs=[-2.3, -1.8, -1.3, -0.8, -0.3, 0., 0.1])
     param_cycle = (dmod_cycle * filt_cycle * feh_cycle * age_cycle).by_key()
