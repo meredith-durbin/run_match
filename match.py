@@ -185,7 +185,10 @@ def make_df(zc_list):
     return df
 
 def merge_csvs(dflist):
-    name = dflist[0].split('_')[1]
+    if len(dflist[0].split('_')) > 1:
+        name = dflist[0].split('_')[1]
+    else:
+        name = dflist[0]
     df = pd.read_csv(dflist[0])
     for i in dflist[1:]:
         df = pd.concat([df, pd.read_csv(i)], ignore_index=True)
