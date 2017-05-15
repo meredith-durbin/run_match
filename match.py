@@ -12,19 +12,16 @@ from functools import partial
 import multiprocessing as mp
 
 # make sure match binaries are accessible
-if 'match2.6' not in os.environ['PATH']:
-    os.environ['PATH'] += ":/astro/store/phat2/projects/src/match2.6/bin"
+if 'match2.7' not in os.environ['PATH']:
+    os.environ['PATH'] += ":/astro/store/phat2/projects/src/match2.7/bin"
 
-zc_names = ['age_low', 'age_high', 'dmod', 'sfr', 'sfr_p', 'sfr_m',
-            'feh', 'feh_p', 'feh_m', 'dfeh', 'dfeh_p', 'dfeh_m',
-            'massfrac', 'massfrac_p', 'massfrac_m']
+zp1 = 29
+zp2 = 28
+age_spacing = 0.05
 
-zp1 = 30.5
-zp2 = 29.5
-
-# makefake 100000 15 28 -0.5 5 29 28 -snr=5
-def makefake(out_dir, outfile, nstars=100000, mag_low=15, 
-             mag_high=31, color_blue=-0.5, color_red=5, 
+# makefake 100000 20 30 -2 5 29 28 -snr=5
+def makefake(out_dir, outfile, nstars=100000, mag_low=20, 
+             mag_high=30, color_blue=-2.0, color_red=5.0, 
              completeness_1=zp1, completeness_2=zp2, **kwargs):
     '''Wrapper around makefake
     
@@ -64,31 +61,34 @@ def makefake(out_dir, outfile, nstars=100000, mag_low=15,
         ps.communicate()
     print('{} fake stars made'.format(nstars))
 
-def write_par(infile, outfile, out_dir, dist, filter1, filter2='WFIRST_H158',
-              zp1=zp1, zp2=zp2, age=9.7, feh=-1.75, age_spacing=0.1):
-    with open(infile) as f:
-        template = f.read()
-    if 'fake' in infile:
-        outstr = template.format(dist, filter1, filter2, zp1, zp2, age, age+age_spacing, feh)
-    elif 'calcsfh' in infile:
-        age_grid = make_age_grid(age, spacing=age_spacing)
-        outstr = template.format(dist, filter1, filter2, zp1, zp2, age_grid)
-    outpath = os.path.join(out_dir, outfile)
-    with open(outpath, 'w') as f:
-        f.write(outstr)
-
-def make_age_grid(target_age, num_bins=15, spacing=0.1):
-    age_range = num_bins * spacing
+def make_age_grid(target_age, num_bins=24, max_age=10.1, age_spacing=age_spacing):
+    age_range = num_bins * age_spacing
     age_low = target_age - age_range*(2/3)
-    age_high = target_age + age_range/3 - spacing
+    age_high = target_age + age_range/3 - age_spacing
+    if age_high > max_age:
+        nbins =- int((age_high - max_age)/age_spacing)
+        age_high = max_age
     age_left = np.linspace(age_low, age_high, num_bins)
-    age_right = age_left + spacing
+    age_right = age_left + age_spacing
     gridstr = '{}\n'.format(num_bins)
     gridstr += '\n'.join(['    {:.2f} {:.2f}'.format(age_left[i], age_right[i]) for i in range(num_bins)])
     return gridstr
 
+def write_par(infile, outfile, out_dir, dmod, filter1, age, feh=None, sfr=None, filter2='WFIRST_H158',
+              zp1=zp1, zp2=zp2, age_spacing=age_spacing):
+    with open(infile) as f:
+        template = f.read()
+    if 'fake' in infile:
+        outstr = template.format(dmod, filter1, filter2, zp1, zp2, age, age+age_spacing, sfr, feh)
+    elif 'calcsfh' in infile:
+        age_grid = make_age_grid(age, age_spacing=age_spacing)
+        outstr = template.format(dmod, filter1, filter2, zp1, zp2, age_grid)
+    outpath = os.path.join(out_dir, outfile)
+    with open(outpath, 'w') as f:
+        f.write(outstr)
+
 # fake test4.fakepar fake.out -fake=fake.txt
-def fake(out_dir, fakepar, outfile, infile, verbose=False, mist=True):
+def fake(out_dir, fakepar, outfile, infile, verbose=False, mist=False):
     parpath = os.path.join(out_dir, fakepar)
     inpath = os.path.join(out_dir, infile)
     outpath = os.path.join(out_dir, outfile)
@@ -100,28 +100,21 @@ def fake(out_dir, fakepar, outfile, infile, verbose=False, mist=True):
     if verbose:
         print(output, err)
 
-# calcsfh calcsfh.par makefake.out fake.out sfh.out -MIST_fast
-def calcsfh(out_dir, parfile, fakefile, makefakefile, outfile, verbose=False, mist=True):
+# calcsfh calcsfh.par makefake.out fake.out sfh.out -MIST_fast -gir16 -verb
+def calcsfh(out_dir, parfile, fakefile, makefakefile, outfile, mist=False):
     #sfhpath = os.path.join(match_dir, 'bin/calcsfh')
     parpath = os.path.join(out_dir, parfile)
     fakepath = os.path.join(out_dir, fakefile)
     makefakepath = os.path.join(out_dir, makefakefile)
     outpath = os.path.join(out_dir, outfile)
-    process = ['calcsfh', parpath, makefakepath, fakepath, outpath]
+    infopath = os.path.join(out_dir, outfile.replace('.out','_info.out'))
+    process = ['calcsfh', parpath, makefakepath, fakepath, outpath, '-verb']
     if mist:
         process += ['-MIST_fast', '-gir16']
-    ps = sp.Popen(process, universal_newlines=True, 
-                  stdin=sp.PIPE, stdout=sp.PIPE)
-    if verbose:
-        while True:
-            nextline = ps.stdout.readline()
-            if nextline == '' and ps.poll() is not None:
-                break
-            elif nextline.startswith('Av='):
-                ps.stdin.write('\n')
-            sys.stdout.write(nextline)
-            sys.stdout.flush()
-    ps.communicate()
+    with open(infopath, 'w') as out:
+        ps = sp.Popen(process, 
+               universal_newlines=True, stdout=out)
+        ps.communicate()
 
 # zcombine sfh.out
 def zcombine(out_dir, sfhfile, outfile, verbose=False):
@@ -134,67 +127,23 @@ def zcombine(out_dir, sfhfile, outfile, verbose=False):
     if verbose:
         print('zcombine output written to {}'.format(outpath))
 
-def add_systematic(out_dir, systematic, filt):
-    sys_dir = '{:.3f}mag_{}'.format(systematic,filt)
-    sys_path = os.path.join(out_dir, sys_dir)
-    os.makedirs(sys_path, exist_ok=True)
-    fake = np.loadtxt(os.path.join(out_dir,'fake.out'))
-    fake_new = fake.copy()
-    if filt == 'H158':
-        fake_new[:,1] += systematic
-    else:
-        fake_new[:,0] += systematic
-    np.savetxt(os.path.join(sys_path,'fake.out'), fake_new, fmt='%.3f', delimiter=' ')
-    return sys_dir
+def read_sfh_info(sfhinfofile):
+    with open(sfhinfofile) as f:
+        info = f.read()
+    nstars = int(info.split(' real stars read')[0].split('\n')[-1])
+    fit = float(info.split(', fit=')[-1].split('\n')[0])
+    info_dict = {'nstars':nstars,'fit':fit}
+    return info_dict
 
-def parse_zc_file(zc_file):
-    # WFIRST_X625/10Mpc/8.00yr/-2.00dex/zcombine.out
-    # WFIRST_X625/10Mpc/8.00yr/-2.00dex/0.002mag_H158/zcombine.out
-    zc_file_split = zc_file.split('/')
-    filt = zc_file_split[0].split('_')[1]
-    dist = float(zc_file_split[1].split('Mpc')[0])
-    age = float(zc_file_split[2].split('yr')[0])
-    feh = float(zc_file_split[3].split('dex')[0])
-    if zc_file_split[4].find('mag_') == -1:
-        systematic = 'None'
-    else:
-        systematic = zc_file_split[4].replace('mag_',' ')
-    return filt, dist, age, feh, systematic
-
-def make_row(zc_file, zc_names=zc_names):
-    filt, dist, age, feh, systematic = parse_zc_file(zc_file)
-    df_orig = pd.read_csv(zc_file, delim_whitespace=True, skiprows=6, names=zc_names)
-    df = df_orig[(df_orig.age_low == age)]
-    if float(age) > 9.75:
-        age_spacing = 0.08
-    else:
-        age_spacing = 0.15
-    mass_before = df_orig[(df_orig.age_low > age) & (df_orig.age_low < age+age_spacing)].massfrac.sum()
-    df = df.assign(mass_thisbin=df.massfrac-mass_before)
-    df = df.assign(filt=filt)
-    df = df.assign(dist=dist)
-    df = df.assign(age=age)
-    df = df.assign(feh_input=feh)
-    df = df.assign(systematic=systematic)
-    return df
-
-def make_df(zc_list):
-    df = make_row(zc_list[0])
-    for zc_file in zc_list[1:]:
-        df = pd.concat([df, make_row(zc_file)], ignore_index=True)
-    return df
-
-def merge_csvs(dflist):
-    if len(dflist[0].split('_')) > 1:
-        name = dflist[0].split('_')[1]
-    else:
-        name = dflist[0]
-    df = pd.read_csv(dflist[0])
-    for i in dflist[1:]:
-        df = pd.concat([df, pd.read_csv(i)], ignore_index=True)
-    gr = df.groupby(['systematic','dist','age','feh_input'], group_keys=False, as_index=False)
-    s = gr[['mass_thisbin','feh','feh_p','feh_m']].agg([np.mean, np.median, np.std])
-    s.to_csv('{}_grid.csv'.format(name))
+def read_zc(zcfile, age):
+    df = pd.read_csv(zcfile, delim_whitespace=True, usecols=[0,6,12], skiprows=6,
+                     names=['age','feh','massfrac'], index_col='age')
+    df = df.assign(massdiff=df.massfrac.diff(periods=-1))
+    df.massdiff.iloc[-1] = 1 - (df.massdiff.sum() + (1 - df.massfrac.iloc[0]))
+    df = df.assign(weighted_feh=df.massdiff*df.feh)
+    row = df.loc[age]
+    zc_dict = {'massfrac':row.massdiff,'feh_agebin':row.feh,'feh_mean':df.weighted_feh.sum()}
+    return zc_dict
 
 def check_clobber_condition(out_dir, clobber):
     if clobber:
@@ -203,22 +152,14 @@ def check_clobber_condition(out_dir, clobber):
         clobber_condition = os.path.exists(os.path.join(out_dir,'zcombine.out'))
     return clobber_condition
 
-def run(inlist, clobber=True, systematics=False, makenewfake=False):
-    dmod, filter1, age, feh = inlist
-    if (dmod < 28.5):
-        dist = '4Mpc'
-    elif (dmod > 28.5) & (dmod < 29):
-        dist = '6Mpc'
-    elif (dmod > 29) & (dmod < 29.7):
-        dist = '8Mpc'
-    elif (dmod > 29.7):
-        dist = '10Mpc'
-    runstr = '{} at {}, age {:.2f}, [Fe/H] {:.2f}'.format(filter1, dist, age, feh)
-    if float(age) > 9.75:
-        age_spacing = 0.05
-    else:
-        age_spacing = 0.1
-    out_dir = os.path.join(os.getcwd(), filter1, dist, '{:.2f}yr'.format(age), '{:.2f}dex'.format(feh))
+def run(inlist, pan_dict, r, clobber=True, makenewfake=False, age_spacing=age_spacing):
+    # ('WFIRST_X625', 4, 6, 8.5, -2.3)
+    filter1, dist, mass, age, feh = inlist
+    dmod = 5*np.log10(dist*1e6)-5
+    sfr = (10**mass) / (10**(float(age)+age_spacing) - 10**float(age))
+    runstr = '{} at {} Mpc, {} logsolMass, age {}, [Fe/H] {}'.format(filter1, dist, mass, age, feh)
+    out_dir = os.path.join(os.getcwd(), filter1, '{}Mpc'.format(dist),
+        '{}logSolMass'.format(mass), '{}yr'.format(age), '{}dex'.format(feh))
     os.makedirs(out_dir, exist_ok=True)
     clobber_condition = check_clobber_condition(out_dir, clobber)
     if not clobber_condition:
@@ -227,53 +168,72 @@ def run(inlist, clobber=True, systematics=False, makenewfake=False):
             makefake(out_dir, 'makefake.out', snr=5)
         else:
             makefake_origpath = os.path.join(os.getcwd(), 'makefake.out')
-            makefake_newpath = os.path.join(os.getcwd(), out_dir, 'makefake.out')
+            makefake_newpath = os.path.join(out_dir, 'makefake.out')
             shutil.copy(makefake_origpath, makefake_newpath)
-        write_par('fake_template.fakepar', 'fake.fakepar', out_dir, dmod, filter1,
-                  age=age, feh=feh, age_spacing=age_spacing)
-        write_par('calcsfh_template.par', 'calcsfh.par', out_dir, dmod, filter1,
-                  age=age, feh=feh, age_spacing=age_spacing)
+        write_par('fake_template.par', 'fake.fakepar', out_dir, dmod, filter1, float(age),
+            feh=float(feh), sfr=sfr)
+        write_par('calcsfh_template.par', 'calcsfh.par', out_dir, dmod, filter1, float(age))
         fake(out_dir, 'fake.fakepar', 'fake.out', 'makefake.out')
         calcsfh(out_dir, 'calcsfh.par', 'makefake.out', 'fake.out', 'sfh.out')
         zcombine(out_dir, 'sfh.out', 'zcombine.out')
+        os.remove(makefake_newpath)
+        zc_dict = read_zc(os.path.join(out_dir, 'zcombine.out'), float(age))
+        info_dict = read_sfh_info(os.path.join(out_dir,'sfh_info.out'))
+        values_dict = info_dict.copy()
+        values_dict.update(zc_dict)
+        for k,v in values_dict.items():
+            pan_dict[filter1][dist][mass][k].loc[r,age,feh] = v
+            print(runstr, k, v)
     else:
         print('  Already ran ' + runstr)
-    if systematics:
-        for systematic in np.linspace(0.002,0.008,4):
-            for filt in [filter1.split('_')[-1],'H158']:
-                sys_dir = add_systematic(out_dir, systematic, filt)
-                clobber_condition_sys = check_clobber_condition(sys_dir, clobber)
-                if not clobber_condition_sys:
-                    print('    Running systematics at dmod {} for {} with {} mag'.format(dmod, filt,systematic))
-                    new_fake_out = os.path.join(sys_dir, 'fake.out')
-                    new_sfh_out = os.path.join(sys_dir, 'sfh.out')
-                    new_zcombine_out = os.path.join(sys_dir, 'zcombine.out')
-                    calcsfh(out_dir, 'calcsfh.par', 'makefake.out', new_fake_out, new_sfh_out)
-                    zcombine(out_dir, new_sfh_out, new_zcombine_out)
 
 if __name__ == '__main__':
-    dmod_cycle = cycler(dmod=[29.5155, 30]) # 28.0105, 28.8906, 
     filt_cycle = cycler(filt=['WFIRST_X625'])
-    age_cycle = cycler(ages=[8.5, 9., 9.5, 9.8, 10.])
-    feh_cycle = cycler(fehs=[-2.3, -1.8, -1.3, -0.8, -0.3, 0., 0.1])
-    param_cycle = (dmod_cycle * filt_cycle * feh_cycle * age_cycle).by_key()
-    inlist = list(zip(*[param_cycle['dmod'], param_cycle['filt'], param_cycle['ages'], param_cycle['fehs']]))
+    dist_cycle = cycler(dist=[4, 6, 8, 10]) # 28.0105, 28.8906, 
+    mass_cycle = cycler(mass=[6, 7, 8])
+    age_cycle = cycler(age=['{:.1f}'.format(a) for a in [8.5, 9.0, 9.5, 9.8, 10., 10.1]])
+    feh_cycle = cycler(feh=['{:.1f}'.format(f) for f in [-2.2, -1.8, -1.3, -0.8, -0.5, -0.2, 0., 0.1]])
+    nodes = ['massfrac','feh_agebin','feh_mean','nstars','fit']
+    runs = np.arange(1, 20)
+    pan_dict = {f: {d: {m: {n: pd.Panel(items=list(runs) + ['mean','median','std'],
+                                        major_axis=age_cycle.by_key()['age'],
+                                        minor_axis=feh_cycle.by_key()['feh'])
+                            for n in nodes}
+                        for m in mass_cycle.by_key()['mass']}
+                    for d in dist_cycle.by_key()['dist']}
+                for f in filt_cycle.by_key()['filt']}
+    param_cycle = (filt_cycle * dist_cycle * mass_cycle * feh_cycle * age_cycle).by_key()
+    inlist = list(zip(*[param_cycle[k] for k in ['filt','dist','mass','age','feh']]))
     if not os.path.isfile(os.path.join(os.getcwd(), 'makefake.out')):
         makefake(os.getcwd(), 'makefake.out', snr=5)
-    for i in range(20):
-        print('Beginning run {}'.format(i+1))
+    makefake(os.getcwd(), 'makefake.out', snr=5)
+    for r in runs:
+        print('Beginning run {}'.format(r))
         p = mp.Pool(int(mp.cpu_count()/4))
-        p.map(run, inlist)
+        p.map(partial(run, pan_dict=pan_dict, r=r), inlist)
         p.close()
         p.join()
-        for filt in filt_cycle.by_key()['filt']:
-            zc_list = glob.glob('{}/*Mpc/*yr/*dex/zcombine.out'.format(filt)) + glob.glob('{}/*Mpc/*yr/*dex/*mag*/zcombine.out'.format(filt))
-            df = make_df(zc_list)
-            df.sort_values(by=['dist','age','feh_input'], inplace=True)
-            os.makedirs(os.path.join(os.getcwd(), '{}_csvs'.format(filt)), exist_ok=True)
-            df_path = os.path.join(os.getcwd(), '{0}_csvs/{0}_{1}_grid.csv'.format(filt,i))
-            df.to_csv(df_path,index=False)
-            print('DF written for run {} of filter {}'.format(i+1,filt))
-    for filt in filt_cycle.by_key()['filt']:
-        dflist = glob.glob('{}_*.csv'.format(filt))
-        merge_csvs(dflist)
+    outlist = list(zip(*[param_cycle[k] for k in ['filt','dist','mass']]))
+    hdf = pd.HDFStore('Padua2006_CO_AGB.hdf5',complevel=9,complib='zlib')
+    for i in outlist:
+        filter1, dist, mass = i
+        for n in nodes:
+            p = pan_dict[filter1][dist][mass][n]
+            p.loc['mean'] = p.mean(axis=0)
+            p.loc['median'] = p.median(axis=0)
+            p.loc['std'] = p.std(axis=0)
+            hdfpath='{}/dist{}/logsolMass{}/{}'.format(filter1, dist, mass, n)
+            hdf.put(key=hdfpath, value=p, format='table')
+    hdf.close()
+    print('done, fuck you')
+        # for filt in filt_cycle.by_key()['filt']:
+        #     zc_list = glob.glob('{}/*Mpc/*yr/*dex/zcombine.out'.format(filt)) + glob.glob('{}/*Mpc/*yr/*dex/*mag*/zcombine.out'.format(filt))
+        #     df = make_df(zc_list)
+        #     df.sort_values(by=['dist','age','feh_input'], inplace=True)
+        #     os.makedirs(os.path.join(os.getcwd(), '{}_csvs'.format(filt)), exist_ok=True)
+        #     df_path = os.path.join(os.getcwd(), '{0}_csvs/{0}_{1}_grid.csv'.format(filt,i))
+        #     df.to_csv(df_path, index=False)
+        #     print('DF written for run {} of filter {}'.format(i+1,filt))
+    # for filt in filt_cycle.by_key()['filt']:
+    #     dflist = glob.glob('{}_*.csv'.format(filt))
+    #     merge_csvs(dflist)
