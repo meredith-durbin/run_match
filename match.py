@@ -187,12 +187,12 @@ def run(inlist, pan_dict, r, age_spacing=age_spacing):
 
 if __name__ == '__main__':
     filt_cycle = cycler(filt=['WFIRST_X625'])
-    dist_cycle = cycler(dist=[4, 10])  # 6, 8, 
-    mass_cycle = cycler(mass=[6, 8]) # 7, 
-    age_cycle = cycler(age=['{:.1f}'.format(a) for a in [8.5, 10.1]]) # 9.0, 9.5, 9.8, 10., 
-    feh_cycle = cycler(feh=['{:.1f}'.format(f) for f in [-2.2, 0.1]]) # -1.8, -1.3, -0.8, -0.5, -0.2, 0., 
+    dist_cycle = cycler(dist=[4, 6, 8, 10])  # 6, 8, 
+    mass_cycle = cycler(mass=[6, 7, 8]) # 7, 
+    age_cycle = cycler(age=['{:.1f}'.format(a) for a in [8.5, 9.0, 9.5, 9.8, 10.0, 10.1]]) # 9.0, 9.5, 9.8, 10., 
+    feh_cycle = cycler(feh=['{:.1f}'.format(f) for f in [-2.2, -1.8, -1.3, -0.8, -0.5, -0.2, 0.0, 0.1]]) # -1.8, -1.3, -0.8, -0.5, -0.2, 0., 
     nodes = ['massfrac','feh_agebin','feh_mean','nstars','fit']
-    runs = [1] #np.arange(1, 20)
+    runs = np.arange(1, 20)
     pan_dict = {f: {d: {m: {n: pd.Panel(items=list(runs) + ['mean','median','std'],
                                         major_axis=age_cycle.by_key()['age'],
                                         minor_axis=feh_cycle.by_key()['feh'])
