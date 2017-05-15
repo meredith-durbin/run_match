@@ -158,8 +158,10 @@ def run(inlist, pan_dict, r, clobber=True, makenewfake=False, age_spacing=age_sp
     dmod = 5*np.log10(dist*1e6)-5
     sfr = (10**mass) / (10**(float(age)+age_spacing) - 10**float(age))
     runstr = '{} at {} Mpc, {} logsolMass, age {}, [Fe/H] {}'.format(filter1, dist, mass, age, feh)
-    out_dir = os.path.join(os.getcwd(), filter1, '{}Mpc'.format(dist),
-        '{}logSolMass'.format(mass), '{}yr'.format(age), '{}dex'.format(feh))
+    # {}/dist{}/logsolMass{}/{}'.format(filter1, dist, mass, n)
+    out_dir = os.path.join(os.getcwd(), filter1, 'dist{}'.format(dist),
+        'logSolMass{}'.format(mass), 'logYr{}'.format(age.replace('.','p')),
+        'dex{}'.format(feh.replace('.','p').replace('-','_')))
     os.makedirs(out_dir, exist_ok=True)
     clobber_condition = check_clobber_condition(out_dir, clobber)
     if not clobber_condition:
@@ -183,7 +185,7 @@ def run(inlist, pan_dict, r, clobber=True, makenewfake=False, age_spacing=age_sp
         values_dict.update(zc_dict)
         for k,v in values_dict.items():
             pan_dict[filter1][dist][mass][k].loc[r,age,feh] = v
-            print(runstr, k, v)
+            print('    ', runstr, k, v)
     else:
         print('  Already ran ' + runstr)
 
@@ -226,14 +228,3 @@ if __name__ == '__main__':
             hdf.put(key=hdfpath, value=p, format='table')
     hdf.close()
     print('done, fuck you')
-        # for filt in filt_cycle.by_key()['filt']:
-        #     zc_list = glob.glob('{}/*Mpc/*yr/*dex/zcombine.out'.format(filt)) + glob.glob('{}/*Mpc/*yr/*dex/*mag*/zcombine.out'.format(filt))
-        #     df = make_df(zc_list)
-        #     df.sort_values(by=['dist','age','feh_input'], inplace=True)
-        #     os.makedirs(os.path.join(os.getcwd(), '{}_csvs'.format(filt)), exist_ok=True)
-        #     df_path = os.path.join(os.getcwd(), '{0}_csvs/{0}_{1}_grid.csv'.format(filt,i))
-        #     df.to_csv(df_path, index=False)
-        #     print('DF written for run {} of filter {}'.format(i+1,filt))
-    # for filt in filt_cycle.by_key()['filt']:
-    #     dflist = glob.glob('{}_*.csv'.format(filt))
-    #     merge_csvs(dflist)
