@@ -188,7 +188,11 @@ if __name__ == '__main__':
     if len(sys.argv) > 1:
         model = sys.argv[1]
     else:
-        model = 'Padua2006_CO_AGB'
+        model = 'Padua2006_CO_AGB']
+    if len(sys.argv) > 2:
+        n_pool = sys.argv[2]
+    else:
+        n_pool = int(mp.cpu_count())
     print("Using model {}".format(model))
     filt_cycle = cycler(filt=['WFIRST_X625'])
     dist_cycle = cycler(dist=[4, 6, 8, 10])  # 6, 8, 
@@ -209,7 +213,7 @@ if __name__ == '__main__':
     makefake(os.getcwd(), 'makefake.out', snr=5)
     for r in runs:
         print('Beginning run {}'.format(r))
-        p = mp.Pool(int(mp.cpu_count()/8))
+        p = mp.Pool(n_pool)
         p.map(partial(run, pan_dict=pan_dict, r=r, model=model), inlist)
         p.close()
         p.join()
