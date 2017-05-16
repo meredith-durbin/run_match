@@ -188,7 +188,7 @@ if __name__ == '__main__':
     if len(sys.argv) > 1:
         model = sys.argv[1]
     else:
-        model = 'Padua2006_CO_AGB']
+        model = 'Padua2006_CO_AGB'
     if len(sys.argv) > 2:
         n_pool = sys.argv[2]
     else:
