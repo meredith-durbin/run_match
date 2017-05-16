@@ -10,6 +10,7 @@ import sys
 from cycler import cycler
 from functools import partial
 import multiprocessing as mp
+import argparse
 
 # make sure match binaries are accessible
 if 'match2.7' not in os.environ['PATH']:
@@ -88,7 +89,7 @@ def write_par(infile, outfile, out_dir, dmod, filter1, age, feh=None, sfr=None, 
         f.write(outstr)
 
 # fake fake.par fake.out -fake=makefake.out
-def fake(out_dir, fakepar, outfile, infile, model, verbose=True):
+def fake(out_dir, fakepar, outfile, infile, model, verbose=False):
     parpath = os.path.join(out_dir, fakepar)
     inpath = os.path.join(out_dir, infile)
     outpath = os.path.join(out_dir, outfile)
@@ -101,7 +102,7 @@ def fake(out_dir, fakepar, outfile, infile, model, verbose=True):
         print(output, err)
 
 # calcsfh calcsfh.par makefake.out fake.out sfh.out -MIST_fast -gir16 -verb
-def calcsfh(out_dir, parfile, fakefile, makefakefile, outfile, model, verbose=True):
+def calcsfh(out_dir, parfile, fakefile, makefakefile, outfile, model, verbose=False):
     #sfhpath = os.path.join(match_dir, 'bin/calcsfh')
     parpath = os.path.join(out_dir, parfile)
     fakepath = os.path.join(out_dir, fakefile)
@@ -157,7 +158,7 @@ def read_zc(zcfile, age):
 #         clobber_condition = os.path.exists(os.path.join(out_dir,'zcombine.out'))
 #     return clobber_condition
 
-def run(inlist, pan_dict, r, model, age_spacing=age_spacing):
+def run(inlist, pan_dict, r, model, age_spacing=age_spacing, verbose=False):
     filter1, dist, mass, age, feh = inlist
     dmod = 5*np.log10(dist*1e6)-5
     sfr = (10**mass) / (10**(float(age)+age_spacing) - 10**float(age))
@@ -172,9 +173,9 @@ def run(inlist, pan_dict, r, model, age_spacing=age_spacing):
     write_par('fake_template.par', 'fake.fakepar', out_dir, dmod, filter1, float(age),
         feh=float(feh), sfr=sfr)
     write_par('calcsfh_template.par', 'calcsfh.par', out_dir, dmod, filter1, float(age))
-    fake(out_dir, 'fake.fakepar', 'fake.out', 'makefake.out', model)
-    calcsfh(out_dir, 'calcsfh.par', 'makefake.out', 'fake.out', 'sfh.out', model)
-    zcombine(out_dir, 'sfh.out', 'zcombine.out')
+    fake(out_dir, 'fake.fakepar', 'fake.out', 'makefake.out', model, verbose=verbose)
+    calcsfh(out_dir, 'calcsfh.par', 'makefake.out', 'fake.out', 'sfh.out', model, verbose=verbose)
+    zcombine(out_dir, 'sfh.out', 'zcombine.out', verbose=verbose)
     zc_dict = read_zc(os.path.join(out_dir, 'zcombine.out'), float(age))
     info_dict = read_sfh_info(os.path.join(out_dir,'sfh_info.out'))
     values_dict = info_dict.copy()
@@ -185,22 +186,24 @@ def run(inlist, pan_dict, r, model, age_spacing=age_spacing):
     os.remove(os.path.join(out_dir,'makefake.out'))
 
 if __name__ == '__main__':
-    if len(sys.argv) > 1:
-        model = sys.argv[1]
-    else:
-        model = 'Padua2006_CO_AGB'
-    if len(sys.argv) > 2:
-        n_pool = sys.argv[2]
-    else:
-        n_pool = int(mp.cpu_count())
-    print("Using model {}".format(model))
+    parser = argparse.ArgumentParser(description='Process some integers.')
+    parser.add_argument('--model', default='Padua2006_CO_AGB', help='Specify model',
+        choices=['Padua2006_CO_AGB', 'MIST', 'MIST_fast', 'PARSEC'])
+    parser.add_argument('--nproc', default=mp.cpu_count(), type=int, help='Number of processes')
+    parser.add_argument('--runs', default=20, type=int, help='Number of runs')
+    parser.add_argument('--verbose', action='store_true', help='Print all process output')
+    args = parser.parse_args()
+
+    print("Number of threads: {}".format(args.nproc))
+    print("Using model {}".format(args.model))
+
     filt_cycle = cycler(filt=['WFIRST_X625'])
     dist_cycle = cycler(dist=[4, 6, 8, 10])  # 6, 8, 
     mass_cycle = cycler(mass=[7]) # 6, 7, 8
     age_cycle = cycler(age=['{:.1f}'.format(a) for a in [8.5, 9.0, 9.5, 9.8, 10.0, 10.1]])  
     feh_cycle = cycler(feh=['{:.1f}'.format(f) for f in [-2.2, -1.8, -1.3, -0.8, -0.5, -0.2, 0.0, 0.1]]) 
     nodes = ['massfrac','mass_before','mass_after','feh_agebin','feh_mean','nstars','fit']
-    runs = np.arange(1, 20)
+    runs = np.arange(1, args.runs)
     pan_dict = {f: {d: {m: {n: pd.Panel(items=list(runs) + ['mean','median','std'],
                                         major_axis=age_cycle.by_key()['age'],
                                         minor_axis=feh_cycle.by_key()['feh'])
@@ -213,12 +216,13 @@ if __name__ == '__main__':
     makefake(os.getcwd(), 'makefake.out', snr=5)
     for r in runs:
         print('Beginning run {}'.format(r))
-        p = mp.Pool(n_pool)
-        p.map(partial(run, pan_dict=pan_dict, r=r, model=model), inlist)
+        p = mp.Pool(args.nproc)
+        func = partial(run, pan_dict=pan_dict, r=r, model=args.model, verbose=args.verbose)
+        p.map(func, inlist)
         p.close()
         p.join()
     outlist = list(zip(*[param_cycle[k] for k in ['filt','dist','mass']]))
-    hdf = pd.HDFStore('{}.hdf5'.format(model), complevel=9, complib='zlib')
+    hdf = pd.HDFStore('{}.hdf5'.format(args.model), complevel=9, complib='zlib')
     print('Writing output to HDF5 file')
     for i in outlist:
         filter1, dist, mass = i
