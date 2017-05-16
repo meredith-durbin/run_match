@@ -88,7 +88,7 @@ def write_par(infile, outfile, out_dir, dmod, filter1, age, feh=None, sfr=None, 
         f.write(outstr)
 
 # fake fake.par fake.out -fake=makefake.out
-def fake(out_dir, fakepar, outfile, infile, model, verbose=False):
+def fake(out_dir, fakepar, outfile, infile, model, verbose=True):
     parpath = os.path.join(out_dir, fakepar)
     inpath = os.path.join(out_dir, infile)
     outpath = os.path.join(out_dir, outfile)
@@ -101,7 +101,7 @@ def fake(out_dir, fakepar, outfile, infile, model, verbose=False):
         print(output, err)
 
 # calcsfh calcsfh.par makefake.out fake.out sfh.out -MIST_fast -gir16 -verb
-def calcsfh(out_dir, parfile, fakefile, makefakefile, outfile, model):
+def calcsfh(out_dir, parfile, fakefile, makefakefile, outfile, model, verbose=True):
     #sfhpath = os.path.join(match_dir, 'bin/calcsfh')
     parpath = os.path.join(out_dir, parfile)
     fakepath = os.path.join(out_dir, fakefile)
@@ -114,7 +114,9 @@ def calcsfh(out_dir, parfile, fakefile, makefakefile, outfile, model):
     with open(infopath, 'w') as out:
         ps = sp.Popen(process, 
                universal_newlines=True, stdout=out)
-        ps.communicate()
+        output, err = ps.communicate()
+        if verbose:
+            print(output, err)
 
 # zcombine sfh.out
 def zcombine(out_dir, sfhfile, outfile, verbose=False):
@@ -190,7 +192,7 @@ if __name__ == '__main__':
     print("Using model {}".format(model))
     filt_cycle = cycler(filt=['WFIRST_X625'])
     dist_cycle = cycler(dist=[4, 6, 8, 10])  # 6, 8, 
-    mass_cycle = cycler(mass=[6, 7, 8]) # 7, 
+    mass_cycle = cycler(mass=[7]) # 6, 7, 8
     age_cycle = cycler(age=['{:.1f}'.format(a) for a in [8.5, 9.0, 9.5, 9.8, 10.0, 10.1]])  
     feh_cycle = cycler(feh=['{:.1f}'.format(f) for f in [-2.2, -1.8, -1.3, -0.8, -0.5, -0.2, 0.0, 0.1]]) 
     nodes = ['massfrac','mass_before','mass_after','feh_agebin','feh_mean','nstars','fit']
