@@ -87,21 +87,21 @@ def write_par(infile, outfile, out_dir, dmod, filter1, age, feh=None, sfr=None, 
     with open(outpath, 'w') as f:
         f.write(outstr)
 
-# fake test4.fakepar fake.out -fake=fake.txt
-def fake(out_dir, fakepar, outfile, infile, verbose=False, mist=False):
+# fake fake.par fake.out -fake=makefake.out
+def fake(out_dir, fakepar, outfile, infile, model, verbose=False):
     parpath = os.path.join(out_dir, fakepar)
     inpath = os.path.join(out_dir, infile)
     outpath = os.path.join(out_dir, outfile)
     process = ['fake', parpath, outpath, '-fake='+inpath]
-    if mist:
-        process += ['-MIST_fast', '-gir16']
+    if model != 'Padua2006_CO_AGB':
+        process += ['-{}'.format(model), '-gir16']
     ps = sp.Popen(process, stdout=sp.PIPE)
     output, err = ps.communicate()
     if verbose:
         print(output, err)
 
 # calcsfh calcsfh.par makefake.out fake.out sfh.out -MIST_fast -gir16 -verb
-def calcsfh(out_dir, parfile, fakefile, makefakefile, outfile, mist=False):
+def calcsfh(out_dir, parfile, fakefile, makefakefile, outfile, model):
     #sfhpath = os.path.join(match_dir, 'bin/calcsfh')
     parpath = os.path.join(out_dir, parfile)
     fakepath = os.path.join(out_dir, fakefile)
@@ -109,8 +109,8 @@ def calcsfh(out_dir, parfile, fakefile, makefakefile, outfile, mist=False):
     outpath = os.path.join(out_dir, outfile)
     infopath = os.path.join(out_dir, outfile.replace('.out','_info.out'))
     process = ['calcsfh', parpath, makefakepath, fakepath, outpath, '-verb']
-    if mist:
-        process += ['-MIST_fast', '-gir16']
+    if model != 'Padua2006_CO_AGB':
+        process += ['-{}'.format(model), '-gir16']
     with open(infopath, 'w') as out:
         ps = sp.Popen(process, 
                universal_newlines=True, stdout=out)
@@ -152,27 +152,23 @@ def read_zc(zcfile, age):
 #         clobber_condition = os.path.exists(os.path.join(out_dir,'zcombine.out'))
 #     return clobber_condition
 
-def run(inlist, pan_dict, r, age_spacing=age_spacing):
-    # ('WFIRST_X625', 4, 6, 8.5, -2.3)
+def run(inlist, pan_dict, r, model, age_spacing=age_spacing):
     filter1, dist, mass, age, feh = inlist
     dmod = 5*np.log10(dist*1e6)-5
     sfr = (10**mass) / (10**(float(age)+age_spacing) - 10**float(age))
     runstr = '{} at {} Mpc, {} logsolMass, age {}, [Fe/H] {}'.format(filter1, dist, mass, age, feh)
-    # {}/dist{}/logsolMass{}/{}'.format(filter1, dist, mass, n)
     out_dir = os.path.join(os.getcwd(), filter1, 'dist{}'.format(dist),
         'logSolMass{}'.format(mass), 'logYr{}'.format(age.replace('.','p')),
         'dex{}'.format(feh.replace('.','p').replace('-','_')))
     os.makedirs(out_dir, exist_ok=True)
     shutil.copyfile(os.path.join(os.getcwd(),'makefake.out'),
         os.path.join(out_dir,'makefake.out'))
-    # clobber_condition = check_clobber_condition(out_dir, clobber)
-    # if not clobber_condition:
-    print('  Running ' + runstr)
+    print('  Run {}: '.format(r) + runstr)
     write_par('fake_template.par', 'fake.fakepar', out_dir, dmod, filter1, float(age),
         feh=float(feh), sfr=sfr)
     write_par('calcsfh_template.par', 'calcsfh.par', out_dir, dmod, filter1, float(age))
-    fake(out_dir, 'fake.fakepar', 'fake.out', 'makefake.out')
-    calcsfh(out_dir, 'calcsfh.par', 'makefake.out', 'fake.out', 'sfh.out')
+    fake(out_dir, 'fake.fakepar', 'fake.out', 'makefake.out', model)
+    calcsfh(out_dir, 'calcsfh.par', 'makefake.out', 'fake.out', 'sfh.out', model)
     zcombine(out_dir, 'sfh.out', 'zcombine.out')
     zc_dict = read_zc(os.path.join(out_dir, 'zcombine.out'), float(age))
     info_dict = read_sfh_info(os.path.join(out_dir,'sfh_info.out'))
@@ -182,15 +178,18 @@ def run(inlist, pan_dict, r, age_spacing=age_spacing):
         pan_dict[filter1][dist][mass][k].loc[r,age,feh] = v
         print('    ', runstr, k, v)
     os.remove(os.path.join(out_dir,'makefake.out'))
-    # else:
-    #     print('  Already ran ' + runstr)
 
 if __name__ == '__main__':
+    if len(sys.argv) > 1:
+        model = sys.argv[1]
+    else:
+        model = 'Padua2006_CO_AGB'
+    print("Using model {}".format(model))
     filt_cycle = cycler(filt=['WFIRST_X625'])
     dist_cycle = cycler(dist=[4, 6, 8, 10])  # 6, 8, 
     mass_cycle = cycler(mass=[6, 7, 8]) # 7, 
-    age_cycle = cycler(age=['{:.1f}'.format(a) for a in [8.5, 9.0, 9.5, 9.8, 10.0, 10.1]]) # 9.0, 9.5, 9.8, 10., 
-    feh_cycle = cycler(feh=['{:.1f}'.format(f) for f in [-2.2, -1.8, -1.3, -0.8, -0.5, -0.2, 0.0, 0.1]]) # -1.8, -1.3, -0.8, -0.5, -0.2, 0., 
+    age_cycle = cycler(age=['{:.1f}'.format(a) for a in [8.5, 9.0, 9.5, 9.8, 10.0, 10.1]])  
+    feh_cycle = cycler(feh=['{:.1f}'.format(f) for f in [-2.2, -1.8, -1.3, -0.8, -0.5, -0.2, 0.0, 0.1]]) 
     nodes = ['massfrac','feh_agebin','feh_mean','nstars','fit']
     runs = np.arange(1, 20)
     pan_dict = {f: {d: {m: {n: pd.Panel(items=list(runs) + ['mean','median','std'],
@@ -202,17 +201,15 @@ if __name__ == '__main__':
                 for f in filt_cycle.by_key()['filt']}
     param_cycle = (filt_cycle * dist_cycle * mass_cycle * feh_cycle * age_cycle).by_key()
     inlist = list(zip(*[param_cycle[k] for k in ['filt','dist','mass','age','feh']]))
-    # if not os.path.isfile(os.path.join(os.getcwd(), 'makefake.out')):
-    #     makefake(os.getcwd(), 'makefake.out', snr=5)
     makefake(os.getcwd(), 'makefake.out', snr=5)
     for r in runs:
         print('Beginning run {}'.format(r))
         p = mp.Pool(int(mp.cpu_count()/2))
-        p.map(partial(run, pan_dict=pan_dict, r=r), inlist)
+        p.map(partial(run, pan_dict=pan_dict, r=r, model=model), inlist)
         p.close()
         p.join()
     outlist = list(zip(*[param_cycle[k] for k in ['filt','dist','mass']]))
-    hdf = pd.HDFStore('Padua2006_CO_AGB.hdf5', complevel=9, complib='zlib')
+    hdf = pd.HDFStore('{}.hdf5'.format(model), complevel=9, complib='zlib')
     print('Writing output to HDF5 file')
     for i in outlist:
         filter1, dist, mass = i
