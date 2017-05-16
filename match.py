@@ -15,12 +15,12 @@ import multiprocessing as mp
 if 'match2.7' not in os.environ['PATH']:
     os.environ['PATH'] += ":/astro/store/phat2/projects/src/match2.7/bin"
 
-zp1 = 29
+zp1 = 28
 zp2 = 28
 age_spacing = 0.05
 
 # makefake 100000 20 30 -2 5 29 28 -snr=5
-def makefake(out_dir, outfile, nstars=100000, mag_low=20, 
+def makefake(out_dir, outfile, nstars=100000, mag_low=15, 
              mag_high=30, color_blue=-2.0, color_red=5.0, 
              completeness_1=zp1, completeness_2=zp2, **kwargs):
     '''Wrapper around makefake
@@ -142,7 +142,10 @@ def read_zc(zcfile, age):
     df.massdiff.iloc[-1] = 1 - (df.massdiff.sum() + (1 - df.massfrac.iloc[0]))
     df = df.assign(weighted_feh=df.massdiff*df.feh)
     row = df.loc[age]
-    zc_dict = {'massfrac':row.massdiff,'feh_agebin':row.feh,'feh_mean':df.weighted_feh.sum()}
+    mass_after = df[df.index<age].massdiff.sum()
+    mass_before = df[df.index>age].massdiff.sum()
+    zc_dict = {'massfrac':row.massdiff, 'feh_agebin':row.feh, 'feh_mean':df.weighted_feh.sum(),
+        'mass_before':mass_before, 'mass_after':mass_after}
     return zc_dict
 
 # def check_clobber_condition(out_dir, clobber):
@@ -190,7 +193,7 @@ if __name__ == '__main__':
     mass_cycle = cycler(mass=[6, 7, 8]) # 7, 
     age_cycle = cycler(age=['{:.1f}'.format(a) for a in [8.5, 9.0, 9.5, 9.8, 10.0, 10.1]])  
     feh_cycle = cycler(feh=['{:.1f}'.format(f) for f in [-2.2, -1.8, -1.3, -0.8, -0.5, -0.2, 0.0, 0.1]]) 
-    nodes = ['massfrac','feh_agebin','feh_mean','nstars','fit']
+    nodes = ['massfrac','mass_before','mass_after','feh_agebin','feh_mean','nstars','fit']
     runs = np.arange(1, 20)
     pan_dict = {f: {d: {m: {n: pd.Panel(items=list(runs) + ['mean','median','std'],
                                         major_axis=age_cycle.by_key()['age'],
@@ -204,7 +207,7 @@ if __name__ == '__main__':
     makefake(os.getcwd(), 'makefake.out', snr=5)
     for r in runs:
         print('Beginning run {}'.format(r))
-        p = mp.Pool(int(mp.cpu_count()/2))
+        p = mp.Pool(int(mp.cpu_count()/8))
         p.map(partial(run, pan_dict=pan_dict, r=r, model=model), inlist)
         p.close()
         p.join()
