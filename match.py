@@ -205,10 +205,10 @@ if __name__ == '__main__':
     print("Using model {}".format(args.model))
 
     filt_cycle = cycler(filt=['WFIRST_X625'])
-    dist_cycle = cycler(dist=[4])#, 6, 8, 10])  # 6, 8, 
+    dist_cycle = cycler(dist=[4], 6, 8, 10])  # 6, 8, 
     mass_cycle = cycler(mass=[7]) # 6, 7, 8
-    age_cycle = cycler(age=['{:.1f}'.format(a) for a in [8.5]])#, 9.0, 9.5, 9.8, 10.0, 10.1]])  
-    feh_cycle = cycler(feh=['{:.1f}'.format(f) for f in [-2.2]])#, -1.8, -1.3, -0.8, -0.5, -0.2, 0.0, 0.1]]) 
+    age_cycle = cycler(age=['{:.1f}'.format(a) for a in [8.5, 9.0, 9.5, 9.8, 10.0, 10.1]])  
+    feh_cycle = cycler(feh=['{:.1f}'.format(f) for f in [-2.2, -1.8, -1.3, -0.8, -0.5, -0.2, 0.0, 0.1]]) 
     nodes = ['massfrac','mass_before','mass_after','feh_agebin','feh_mean','nstars','fit']
     runs = np.arange(1, args.runs)
     # pan_dict = {f: {d: {m: {n: pd.Panel(items=list(runs) + ['mean','median','std'],
