@@ -183,6 +183,7 @@ def run(inlist, pan_dict, r, model, age_spacing=age_spacing, verbose=False):
     for k,v in values_dict.items():
         pan_dict[filter1][dist][mass][k].loc[r,age,feh] = v
         print('    ', runstr, k, v)
+        print(pan_dict[filter1][dist][mass][k].loc[r,age,feh])
     os.remove(os.path.join(out_dir,'makefake.out'))
 
 if __name__ == '__main__':
@@ -214,6 +215,7 @@ if __name__ == '__main__':
     param_cycle = (filt_cycle * dist_cycle * mass_cycle * feh_cycle * age_cycle).by_key()
     inlist = list(zip(*[param_cycle[k] for k in ['filt','dist','mass','age','feh']]))
     makefake(os.getcwd(), 'makefake.out', snr=5)
+    #zc = pd.HDFStore('{}_zc.hdf5'.format(args.model), complevel=9, complib='zlib')
     for r in runs:
         print('Beginning run {}'.format(r))
         p = mp.Pool(args.nproc)
