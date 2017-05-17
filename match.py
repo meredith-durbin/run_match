@@ -158,7 +158,7 @@ def read_zc(zcfile, age):
 #         clobber_condition = os.path.exists(os.path.join(out_dir,'zcombine.out'))
 #     return clobber_condition
 
-def run(inlist, pan_dict, r, model, age_spacing=age_spacing, verbose=False):
+def run(inlist, r, model, age_spacing=age_spacing, verbose=False):
     filter1, dist, mass, age, feh = inlist
     dmod = 5*np.log10(dist*1e6)-5
     sfr = (10**mass) / (10**(float(age)+age_spacing) - 10**float(age))
@@ -176,23 +176,29 @@ def run(inlist, pan_dict, r, model, age_spacing=age_spacing, verbose=False):
     fake(out_dir, 'fake.fakepar', 'fake.out', 'makefake.out', model, verbose=verbose)
     calcsfh(out_dir, 'calcsfh.par', 'makefake.out', 'fake.out', 'sfh.out', model, verbose=verbose)
     zcombine(out_dir, 'sfh.out', 'zcombine.out', verbose=verbose)
-    zc_dict = read_zc(os.path.join(out_dir, 'zcombine.out'), float(age))
+    df = pd.read_csv(os.path.join(out_dir, 'zcombine.out'), delim_whitespace=True, usecols=[0,6,12], skiprows=6,
+        names=['age','feh','massfrac'], index_col='age')
     info_dict = read_sfh_info(os.path.join(out_dir,'sfh_info.out'))
-    values_dict = info_dict.copy()
-    values_dict.update(zc_dict)
-    for k,v in values_dict.items():
-        pan_dict[filter1][dist][mass][k].loc[r,age,feh] = v
-        print('    ', runstr, k, v)
-        print(pan_dict[filter1][dist][mass][k].loc[r,age,feh])
+    hdfpath='{}/dist{}/logsolMass{}/age{}/dex{}/run{}'.format(filter1, dist, mass, age, feh, r)
+    hdfpath = hdfpath.replace('.','p').replace('-','_')
+    hdfstore.put(key=hdfpath, value=df, format='table')
+    hdfstore.get_storer(hdfpath).attrs.metadata = info_dict
+    hdfstore.flush(fsync=True)
+    # values_dict = info_dict.copy()
+    # values_dict.update(zc_dict)
+    # for k,v in values_dict.items():
+    #     pan_dict[filter1][dist][mass][k].loc[r,age,feh] = v
+    #     print('    ', runstr, k, v)
     os.remove(os.path.join(out_dir,'makefake.out'))
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process some integers.')
     parser.add_argument('--model', default='Padua2006_CO_AGB', help='Specify model',
         choices=['Padua2006_CO_AGB', 'MIST', 'MIST_fast', 'PARSEC'])
-    parser.add_argument('--nproc', default=mp.cpu_count(), type=int, help='Number of processes')
-    parser.add_argument('--runs', default=20, type=int, help='Number of runs')
+    parser.add_argument('--nproc', default=mp.cpu_count(), type=int, help='Number of processes; defaults to number of CPUs')
+    parser.add_argument('--runs', default=20, type=int, help='Number of runs; defaults to 20')
     parser.add_argument('--verbose', action='store_true', help='Print all process output')
+    parser.add_argument('--newHDF', action='store_true', help='Overwrite HDF file if one already exists')
     args = parser.parse_args()
 
     print("Number of threads: {}".format(args.nproc))
@@ -205,35 +211,40 @@ if __name__ == '__main__':
     feh_cycle = cycler(feh=['{:.1f}'.format(f) for f in [-2.2, -1.8, -1.3, -0.8, -0.5, -0.2, 0.0, 0.1]]) 
     nodes = ['massfrac','mass_before','mass_after','feh_agebin','feh_mean','nstars','fit']
     runs = np.arange(1, args.runs)
-    pan_dict = {f: {d: {m: {n: pd.Panel(items=list(runs) + ['mean','median','std'],
-                                        major_axis=age_cycle.by_key()['age'],
-                                        minor_axis=feh_cycle.by_key()['feh'])
-                            for n in nodes}
-                        for m in mass_cycle.by_key()['mass']}
-                    for d in dist_cycle.by_key()['dist']}
-                for f in filt_cycle.by_key()['filt']}
+    # pan_dict = {f: {d: {m: {n: pd.Panel(items=list(runs) + ['mean','median','std'],
+    #                                     major_axis=age_cycle.by_key()['age'],
+    #                                     minor_axis=feh_cycle.by_key()['feh'])
+    #                         for n in nodes}
+    #                     for m in mass_cycle.by_key()['mass']}
+    #                 for d in dist_cycle.by_key()['dist']}
+    #             for f in filt_cycle.by_key()['filt']}
     param_cycle = (filt_cycle * dist_cycle * mass_cycle * feh_cycle * age_cycle).by_key()
     inlist = list(zip(*[param_cycle[k] for k in ['filt','dist','mass','age','feh']]))
     makefake(os.getcwd(), 'makefake.out', snr=5)
-    #zc = pd.HDFStore('{}_zc.hdf5'.format(args.model), complevel=9, complib='zlib')
+    if args.newHDF:
+        mode = 'w'
+    else:
+        mode = 'a'
+    hdfstore = pd.HDFStore('{}_zc.hdf5'.format(args.model), complevel=9, complib='zlib', mode=mode)
     for r in runs:
         print('Beginning run {}'.format(r))
         p = mp.Pool(args.nproc)
-        func = partial(run, pan_dict=pan_dict, r=r, model=args.model, verbose=args.verbose)
+        func = partial(run, r=r, model=args.model, verbose=args.verbose)
         p.map(func, inlist)
         p.close()
         p.join()
-    outlist = list(zip(*[param_cycle[k] for k in ['filt','dist','mass']]))
-    hdf = pd.HDFStore('{}.hdf5'.format(args.model), complevel=9, complib='zlib')
-    print('Writing output to HDF5 file')
-    for i in outlist:
-        filter1, dist, mass = i
-        for n in nodes:
-            p = pan_dict[filter1][dist][mass][n]
-            p.loc['mean'] = p.mean(axis=0)
-            p.loc['median'] = p.median(axis=0)
-            p.loc['std'] = p.std(axis=0)
-            hdfpath='{}/dist{}/logsolMass{}/{}'.format(filter1, dist, mass, n)
-            hdf.put(key=hdfpath, value=p, format='table')
-    hdf.close()
+    hdfstore.close()
+    # outlist = list(zip(*[param_cycle[k] for k in ['filt','dist','mass']]))
+    # hdf = pd.HDFStore('{}.hdf5'.format(args.model), complevel=9, complib='zlib', mode=mode)
+    # print('Writing output to HDF5 file')
+    # for i in outlist:
+    #     filter1, dist, mass = i
+    #     for n in nodes:
+    #         p = pan_dict[filter1][dist][mass][n]
+    #         p.loc['mean'] = p.mean(axis=0)
+    #         p.loc['median'] = p.median(axis=0)
+    #         p.loc['std'] = p.std(axis=0)
+    #         hdfpath='{}/dist{}/logsolMass{}/{}'.format(filter1, dist, mass, n)
+    #         hdf.put(key=hdfpath, value=p, format='table')
+    # hdf.close()
     print('Done!')
