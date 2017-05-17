@@ -179,16 +179,17 @@ def run(inlist, r, model, age_spacing=age_spacing, verbose=False):
     df = pd.read_csv(os.path.join(out_dir, 'zcombine.out'), delim_whitespace=True, usecols=[0,6,12], skiprows=6,
         names=['age','feh','massfrac'], index_col='age')
     info_dict = read_sfh_info(os.path.join(out_dir,'sfh_info.out'))
-    hdfpath='{}/dist{}/logsolMass{}/age{}/dex{}/run{}'.format(filter1, dist, mass, age, feh, r).replace('.','p').replace('-','_')
-    hdfstore.put(key=hdfpath, value=df, format='table')
-    hdfstore.get_storer(hdfpath).attrs.metadata = info_dict
-    hdfstore.flush(fsync=True)
+    # hdfpath='{}/dist{}/logsolMass{}/age{}/dex{}/run{}'.format(filter1, dist, mass, age, feh, r).replace('.','p').replace('-','_')
+    # hdfstore.put(key=hdfpath, value=df, format='table')
+    # hdfstore.get_storer(hdfpath).attrs.metadata = info_dict
+    # hdfstore.flush(fsync=True)
     # values_dict = info_dict.copy()
     # values_dict.update(zc_dict)
     # for k,v in values_dict.items():
     #     pan_dict[filter1][dist][mass][k].loc[r,age,feh] = v
     #     print('    ', runstr, k, v)
     os.remove(os.path.join(out_dir,'makefake.out'))
+    return out_dir
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process some integers.')
@@ -204,10 +205,10 @@ if __name__ == '__main__':
     print("Using model {}".format(args.model))
 
     filt_cycle = cycler(filt=['WFIRST_X625'])
-    dist_cycle = cycler(dist=[4, 6, 8, 10])  # 6, 8, 
+    dist_cycle = cycler(dist=[4])#, 6, 8, 10])  # 6, 8, 
     mass_cycle = cycler(mass=[7]) # 6, 7, 8
-    age_cycle = cycler(age=['{:.1f}'.format(a) for a in [8.5, 9.0, 9.5, 9.8, 10.0, 10.1]])  
-    feh_cycle = cycler(feh=['{:.1f}'.format(f) for f in [-2.2, -1.8, -1.3, -0.8, -0.5, -0.2, 0.0, 0.1]]) 
+    age_cycle = cycler(age=['{:.1f}'.format(a) for a in [8.5]])#, 9.0, 9.5, 9.8, 10.0, 10.1]])  
+    feh_cycle = cycler(feh=['{:.1f}'.format(f) for f in [-2.2]])#, -1.8, -1.3, -0.8, -0.5, -0.2, 0.0, 0.1]]) 
     nodes = ['massfrac','mass_before','mass_after','feh_agebin','feh_mean','nstars','fit']
     runs = np.arange(1, args.runs)
     # pan_dict = {f: {d: {m: {n: pd.Panel(items=list(runs) + ['mean','median','std'],
@@ -229,9 +230,18 @@ if __name__ == '__main__':
         print('Beginning run {}'.format(r))
         p = mp.Pool(args.nproc)
         func = partial(run, r=r, model=args.model, verbose=args.verbose)
-        p.map(func, inlist)
+        out_dirs = p.map(func, inlist)
         p.close()
         p.join()
+        print(out_dirs)
+        for out_dir in out_dirs:
+            df = pd.read_csv(os.path.join(out_dir, 'zcombine.out'), delim_whitespace=True, usecols=[0,6,12],
+                skiprows=6, names=['age','feh','massfrac'], index_col='age')
+            info_dict = read_sfh_info(os.path.join(out_dir,'sfh_info.out'))
+            hdfpath = os.path.join(out_dir.split(os.getcwd())[-1], 'run{}'.format(r))
+            hdfstore.put(key=hdfpath, value=df, format='table')
+            hdfstore.get_storer(hdfpath).attrs.metadata = info_dict
+        print(hdfstore.keys())
     hdfstore.close()
     # outlist = list(zip(*[param_cycle[k] for k in ['filt','dist','mass']]))
     # hdf = pd.HDFStore('{}.hdf5'.format(args.model), complevel=9, complib='zlib', mode=mode)
