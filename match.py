@@ -179,8 +179,7 @@ def run(inlist, r, model, age_spacing=age_spacing, verbose=False):
     df = pd.read_csv(os.path.join(out_dir, 'zcombine.out'), delim_whitespace=True, usecols=[0,6,12], skiprows=6,
         names=['age','feh','massfrac'], index_col='age')
     info_dict = read_sfh_info(os.path.join(out_dir,'sfh_info.out'))
-    hdfpath='{}/dist{}/logsolMass{}/age{}/dex{}/run{}'.format(filter1, dist, mass, age, feh, r)
-    hdfpath = hdfpath.replace('.','p').replace('-','_')
+    hdfpath='{}/dist{}/logsolMass{}/age{}/dex{}/run{}'.format(filter1, dist, mass, age, feh, r).replace('.','p').replace('-','_')
     hdfstore.put(key=hdfpath, value=df, format='table')
     hdfstore.get_storer(hdfpath).attrs.metadata = info_dict
     hdfstore.flush(fsync=True)
