@@ -1,5 +1,4 @@
-from __future__ import print_function
-
+#from __future__ import print_function
 import glob
 import numpy as np
 import os
@@ -11,6 +10,7 @@ from cycler import cycler
 from functools import partial
 import multiprocessing as mp
 import argparse
+import xarray as xr
 
 # make sure match binaries are accessible
 if 'match2.7' not in os.environ['PATH']:
@@ -140,56 +140,67 @@ def read_sfh_info(sfhinfofile):
 
 def read_zc(zcfile, age):
     df = pd.read_csv(zcfile, delim_whitespace=True, usecols=[0,6,12], skiprows=6,
-                     names=['age','feh','massfrac'], index_col='age')
+                     names=['age','feh','massfrac'], skipinitialspace=True, 
+                     dtype={'age': str, 'feh': np.float64, 'massfrac': np.float64})
+    df.set_index('age', inplace=True)
     df = df.assign(massdiff=df.massfrac.diff(periods=-1))
     df.massdiff.iloc[-1] = 1 - (df.massdiff.sum() + (1 - df.massfrac.iloc[0]))
     df = df.assign(weighted_feh=df.massdiff*df.feh)
     row = df.loc[age]
-    mass_after = df[df.index<age].massdiff.sum()
-    mass_before = df[df.index>age].massdiff.sum()
+    mass_after = df[df.index.astype(float)<(float(age)-0.01)].massdiff.sum()
+    mass_before = df[df.index.astype(float)>(float(age)+0.01)].massdiff.sum()
     zc_dict = {'massfrac':row.massdiff, 'feh_agebin':row.feh, 'feh_mean':df.weighted_feh.sum(),
         'mass_before':mass_before, 'mass_after':mass_after}
     return zc_dict
 
-# def check_clobber_condition(out_dir, clobber):
-#     if clobber:
-#         clobber_condition = False
-#     else:
-#         clobber_condition = os.path.exists(os.path.join(out_dir,'zcombine.out'))
-#     return clobber_condition
-
-def run(inlist, r, model, age_spacing=age_spacing, verbose=False):
-    filter1, dist, mass, age, feh = inlist
-    dmod = 5*np.log10(dist*1e6)-5
-    sfr = (10**mass) / (10**(float(age)+age_spacing) - 10**float(age))
-    runstr = '{} at {} Mpc, {} logsolMass, age {}, [Fe/H] {}'.format(filter1, dist, mass, age, feh)
-    out_dir = os.path.join(os.getcwd(), filter1, 'dist{}'.format(dist),
-        'logSolMass{}'.format(mass), 'logYr{}'.format(age.replace('.','p')),
-        'dex{}'.format(feh.replace('.','p').replace('-','_')))
-    os.makedirs(out_dir, exist_ok=True)
+def run_core(out_dir, dmod, filter1, age, feh, sfr, model, verbose):
     shutil.copyfile(os.path.join(os.getcwd(),'makefake.out'),
         os.path.join(out_dir,'makefake.out'))
-    print('  Run {}: '.format(r) + runstr)
-    write_par('fake_template.par', 'fake.fakepar', out_dir, dmod, filter1, float(age),
-        feh=float(feh), sfr=sfr)
-    write_par('calcsfh_template.par', 'calcsfh.par', out_dir, dmod, filter1, float(age))
+    write_par('fake_template.par', 'fake.fakepar', out_dir, dmod, filter1, age,
+        feh=feh, sfr=sfr)
+    write_par('calcsfh_template.par', 'calcsfh.par', out_dir, dmod, filter1, age)
     fake(out_dir, 'fake.fakepar', 'fake.out', 'makefake.out', model, verbose=verbose)
     calcsfh(out_dir, 'calcsfh.par', 'makefake.out', 'fake.out', 'sfh.out', model, verbose=verbose)
     zcombine(out_dir, 'sfh.out', 'zcombine.out', verbose=verbose)
-    df = pd.read_csv(os.path.join(out_dir, 'zcombine.out'), delim_whitespace=True, usecols=[0,6,12], skiprows=6,
-        names=['age','feh','massfrac'], index_col='age')
-    info_dict = read_sfh_info(os.path.join(out_dir,'sfh_info.out'))
-    # hdfpath='{}/dist{}/logsolMass{}/age{}/dex{}/run{}'.format(filter1, dist, mass, age, feh, r).replace('.','p').replace('-','_')
-    # hdfstore.put(key=hdfpath, value=df, format='table')
-    # hdfstore.get_storer(hdfpath).attrs.metadata = info_dict
-    # hdfstore.flush(fsync=True)
-    # values_dict = info_dict.copy()
-    # values_dict.update(zc_dict)
-    # for k,v in values_dict.items():
-    #     pan_dict[filter1][dist][mass][k].loc[r,age,feh] = v
-    #     print('    ', runstr, k, v)
     os.remove(os.path.join(out_dir,'makefake.out'))
-    return out_dir
+    zc_dict = read_zc(os.path.join(out_dir, 'zcombine.out'), age)
+    info_dict = read_sfh_info(os.path.join(out_dir,'sfh_info.out'))
+    return zc_dict, info_dict
+
+def run_test(out_dir, age):
+    shutil.copyfile(os.path.join(os.getcwd(),'sfh_info_test.out'),
+        os.path.join(out_dir,'sfh_info_test.out'))
+    shutil.copyfile(os.path.join(os.getcwd(),'zcombine_test.out'),
+        os.path.join(out_dir,'zcombine_test.out'))
+    zc_dict = read_zc(os.path.join(out_dir, 'zcombine_test.out'), age)
+    info_dict = read_sfh_info(os.path.join(out_dir,'sfh_info_test.out'))
+    return zc_dict, info_dict
+
+def run(inlist, r, model, age_spacing=age_spacing, verbose=False, test=False):
+    filter1, dist, mass, age, feh = inlist
+    dmod = 5*np.log10(dist*1e6)-5
+    sfr = (10**mass) / (10**(float(age)+age_spacing) - 10**float(age))
+    runstr = '    Run {}: {} at {} Mpc, {} logsolMass, age {}, [Fe/H] {}'.format(r, filter1, dist, mass, age, feh)
+    print(runstr)
+    out_dir = os.path.join(os.getcwd(), filter1, 'dist{}'.format(dist),
+        'logSolMass{}'.format(mass), 'logYr{:.1f}'.format(float(age)).replace('.','p'),
+        'dex{:.1f}'.format(float(feh)).replace('.','p').replace('-','_'))
+    os.makedirs(out_dir, exist_ok=True)
+    if test:
+        zc_dict, info_dict = run_test(out_dir, age)
+    else:
+        zc_dict, info_dict = run_core(out_dir, dmod, filter1, age, feh, sfr, model, verbose)
+    #zc_dict = read_zc(os.path.join(out_dir, 'zcombine.out'), age)
+    #info_dict = read_sfh_info(os.path.join(out_dir,'sfh_info.out'))
+    values_dict = info_dict.copy()
+    values_dict.update(zc_dict)
+    for k,v in values_dict.items():
+        d.loc[filter1, dist, mass, age, feh, str(r), k] = v
+        print('    {} {} = {}'.format(runstr, k, v))
+    if test:
+        os.remove(os.path.join(out_dir,'sfh_info_test.out'))
+        os.remove(os.path.join(out_dir,'zcombine_test.out'))
+    return filter1, dist, mass, age, feh, values_dict
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process some integers.')
@@ -198,51 +209,66 @@ if __name__ == '__main__':
     parser.add_argument('--nproc', default=mp.cpu_count(), type=int, help='Number of processes; defaults to number of CPUs')
     parser.add_argument('--runs', default=20, type=int, help='Number of runs; defaults to 20')
     parser.add_argument('--verbose', action='store_true', help='Print all process output')
-    parser.add_argument('--newHDF', action='store_true', help='Overwrite HDF file if one already exists')
+    parser.add_argument('--append', action='store_true', help='Append to existing HDF file')
+    parser.add_argument('--test', action='store_true', help='Test')
     args = parser.parse_args()
 
     print("Number of threads: {}".format(args.nproc))
     print("Using model {}".format(args.model))
 
-    filt_cycle = cycler(filt=['WFIRST_X625'])
-    dist_cycle = cycler(dist=[4, 6, 8, 10])  # 6, 8, 
-    mass_cycle = cycler(mass=[7]) # 6, 7, 8
-    age_cycle = cycler(age=['{:.1f}'.format(a) for a in [8.5, 9.0, 9.5, 9.8, 10.0, 10.1]])  
-    feh_cycle = cycler(feh=['{:.1f}'.format(f) for f in [-2.2, -1.8, -1.3, -0.8, -0.5, -0.2, 0.0, 0.1]]) 
-    nodes = ['massfrac','mass_before','mass_after','feh_agebin','feh_mean','nstars','fit']
-    runs = np.arange(1, args.runs)
-    # pan_dict = {f: {d: {m: {n: pd.Panel(items=list(runs) + ['mean','median','std'],
-    #                                     major_axis=age_cycle.by_key()['age'],
-    #                                     minor_axis=feh_cycle.by_key()['feh'])
-    #                         for n in nodes}
-    #                     for m in mass_cycle.by_key()['mass']}
-    #                 for d in dist_cycle.by_key()['dist']}
-    #             for f in filt_cycle.by_key()['filt']}
+    filt=['WFIRST_X625']
+    dist=[4, 6, 8, 10]
+    mass=[7]
+    #age = [8.5, 9.0, 9.5, 9.8, 10.0, 10.1]
+    #feh = [-2.2, -1.8, -1.3, -0.8, -0.5, -0.2, 0.0, 0.1]
+    age=['{:.2f}'.format(a) for a in [8.5, 9.0, 9.5, 9.8, 10.0, 10.1]]
+    feh=['{:.2f}'.format(f) for f in [-2.2, -1.8, -1.3, -0.8, -0.5, -0.2, 0.0, 0.1]]
+    filt_cycle = cycler(filt=filt)
+    dist_cycle = cycler(dist=dist)  # 6, 8, 
+    mass_cycle = cycler(mass=mass) # 6, 7, 8
+    age_cycle = cycler(age=age)  
+    feh_cycle = cycler(feh=feh) 
+    vals = ['massfrac', 'mass_before', 'mass_after', 'feh_agebin', 'feh_mean', 'nstars', 'fit']
+    runs = list(np.arange(1, args.runs+1).astype(str)) + ['mean', 'median', 'std']
     param_cycle = (filt_cycle * dist_cycle * mass_cycle * feh_cycle * age_cycle).by_key()
-    inlist = list(zip(*[param_cycle[k] for k in ['filt','dist','mass','age','feh']]))
-    makefake(os.getcwd(), 'makefake.out', snr=5)
-    if args.newHDF:
-        mode = 'w'
-    else:
+    keylist = ['filt','dist','mass','age','feh','runs','vals']
+    dimlist = [filt, dist, mass, age, feh, runs, vals]
+    coord_dict = {keylist[i]:dimlist[i] for i in range(len(keylist))}
+    inlist = list(zip(*[param_cycle[k] for k in keylist[:-2]]))
+    d = xr.DataArray( np.zeros( [len(coord_dict[k]) for k in keylist] ), dims=keylist,
+        coords=coord_dict)
+    dpath = '{}.nc'.format(args.model)
+    if (os.path.exists(dpath)) & args.append:
         mode = 'a'
-    hdfstore = pd.HDFStore('{}_zc.hdf5'.format(args.model), complevel=9, complib='zlib', mode=mode)
-    for r in runs:
+    else:
+        mode = 'w'
+    makefake(os.getcwd(), 'makefake.out', snr=5)
+    for r in range(1, args.runs+1):
         print('Beginning run {}'.format(r))
         p = mp.Pool(args.nproc)
-        func = partial(run, r=r, model=args.model, verbose=args.verbose)
-        out_dirs = p.map(func, inlist)
+        func = partial(run, r=r, model=args.model, verbose=args.verbose, test=args.test)
+        output = p.map(func, inlist)
         p.close()
         p.join()
-        print(out_dirs)
-        for out_dir in out_dirs:
-            df = pd.read_csv(os.path.join(out_dir, 'zcombine.out'), delim_whitespace=True, usecols=[0,6,12],
-                skiprows=6, names=['age','feh','massfrac'], index_col='age')
-            info_dict = read_sfh_info(os.path.join(out_dir,'sfh_info.out'))
-            hdfpath = os.path.join(out_dir.split(os.getcwd())[-1], 'run{}'.format(r))
-            hdfstore.put(key=hdfpath, value=df, format='table')
-            hdfstore.get_storer(hdfpath).attrs.metadata = info_dict
-        print(hdfstore.keys())
-    hdfstore.close()
+        for line in output:
+            filter1, dist, mass, age, feh, values_dict = line
+            for k,v in values_dict.items():
+                d.loc[filter1, dist, mass, age, feh, str(r), k] = v
+    # for string in ['runs','vals','filt']:
+    #     d[string] = d[string].astype(str)        
+    # for flt in ['feh','age']:
+    #     d[flt] = d[flt].astype(float)
+    d.to_netcdf('{}.nc'.format(args.model), mode=mode)
+        # print(out_dirs)
+        # for out_dir in out_dirs:
+        #     df = pd.read_csv(os.path.join(out_dir, 'zcombine.out'), delim_whitespace=True, usecols=[0,6,12],
+        #         skiprows=6, names=['age','feh','massfrac'], index_col='age')
+        #     info_dict = read_sfh_info(os.path.join(out_dir,'sfh_info.out'))
+            #hdfpath = os.path.join(out_dir.split(os.getcwd())[-1], 'run{}'.format(r))
+            #hdfstore.put(key=hdfpath, value=df, format='table')
+            #hdfstore.get_storer(hdfpath).attrs.metadata = info_dict
+        #print(hdfstore.keys())
+    #hdfstore.close()
     # outlist = list(zip(*[param_cycle[k] for k in ['filt','dist','mass']]))
     # hdf = pd.HDFStore('{}.hdf5'.format(args.model), complevel=9, complib='zlib', mode=mode)
     # print('Writing output to HDF5 file')

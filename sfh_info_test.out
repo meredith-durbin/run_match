@@ -1,0 +1,16 @@
+Fitting HR diagram
+IMF 1.300000, 50 mag bins, 600 time bins
+ filter #1: 23.000000 to 28.000000
+ filter #2: 23.000000 to 28.000000
+ color #1: -1.500000 to 4.500000
+3006 real stars read
+100000 fake stars read, consolidated to 200289
+  Min #input  = 17
+  Min #output = 0
+  Max #store  = 91
+Av=0.100000, imf=1.300000, dmod=28.010000: 
+init_mem time: 0.65
+make_models time: 36.39
+finished time: 58.37
+fit=6.469496e+02
+Best fit: Av=0.100000, dmod=28.010000, fit=646.949560
