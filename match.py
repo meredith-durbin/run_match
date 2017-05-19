@@ -80,7 +80,8 @@ def write_par(infile, outfile, out_dir, dmod, filter1, age, feh=None, sfr=None, 
     with open(infile) as f:
         template = f.read()
     if 'fake' in infile:
-        outstr = template.format(dmod, filter1, filter2, zp1, zp2, age, age+age_spacing, sfr, feh)
+        outstr = template.format(dmod, filter1, filter2, zp1, zp2, float(age),
+            float(age)+age_spacing, sfr, float(feh))
     elif 'calcsfh' in infile:
         age_grid = make_age_grid(age, age_spacing=age_spacing)
         outstr = template.format(dmod, filter1, filter2, zp1, zp2, age_grid)
