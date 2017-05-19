@@ -216,11 +216,11 @@ if __name__ == '__main__':
     print("Number of threads: {}".format(args.nproc))
     print("Using model {}".format(args.model))
 
-    filt=['WFIRST_X625']
-    dist=[4]#, 6, 8, 10]
+    filt=['WFIRST_X606', 'WFIRST_X625', 'WFIRST_Z087']
+    dist=[4, 6, 8, 10]
     mass=[6, 7, 8]
-    age=['{:.2f}'.format(a) for a in [8.5]]#, 9.0, 9.5, 9.8, 10.0, 10.1]]
-    feh=['{:.2f}'.format(f) for f in [-2.2]]#, -1.8, -1.3, -0.8, -0.5, -0.2, 0.0, 0.1]]
+    age=['{:.2f}'.format(a) for a in [8.5, 9.0, 9.5, 9.8, 10.0, 10.1]]
+    feh=['{:.2f}'.format(f) for f in [-2.2, -1.8, -1.3, -0.8, -0.5, -0.2, 0.0, 0.1]]
     filt_cycle = cycler(filt=filt)
     dist_cycle = cycler(dist=dist)
     mass_cycle = cycler(mass=mass)
@@ -238,7 +238,7 @@ if __name__ == '__main__':
     dpath = '{}.nc'.format(args.model)
     makefake(os.getcwd(), 'makefake.out', snr=5)
     for r in range(1, args.runs+1):
-        print('Beginning run {}'.format(r))
+        print('Beginning run {} out of {}'.format(r, args.runs+1))
         p = mp.Pool(args.nproc)
         func = partial(run, r=r, model=args.model, verbose=args.verbose, test=args.test)
         output = p.map(func, inlist)
