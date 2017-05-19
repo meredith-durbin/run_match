@@ -190,8 +190,6 @@ def run(inlist, r, model, age_spacing=age_spacing, verbose=False, test=False):
         zc_dict, info_dict = run_test(out_dir, age)
     else:
         zc_dict, info_dict = run_core(out_dir, dmod, filter1, age, feh, sfr, model, verbose)
-    #zc_dict = read_zc(os.path.join(out_dir, 'zcombine.out'), age)
-    #info_dict = read_sfh_info(os.path.join(out_dir,'sfh_info.out'))
     values_dict = info_dict.copy()
     values_dict.update(zc_dict)
     for k,v in values_dict.items():
@@ -254,10 +252,6 @@ if __name__ == '__main__':
             filter1, dist, mass, age, feh, values_dict = line
             for k,v in values_dict.items():
                 d.loc[filter1, dist, mass, age, feh, str(r), k] = v
-    # for string in ['runs','vals','filt']:
-    #     d[string] = d[string].astype(str)        
-    # for flt in ['feh','age']:
-    #     d[flt] = d[flt].astype(float)
     d.to_netcdf('{}.nc'.format(args.model), mode=mode)
         # print(out_dirs)
         # for out_dir in out_dirs:
