@@ -63,6 +63,7 @@ def makefake(out_dir, outfile, nstars=100000, mag_low=15,
     print('{} fake stars made'.format(nstars))
 
 def make_age_grid(target_age, num_bins=24, max_age=10.1, age_spacing=age_spacing):
+    target_age = float(target_age)
     age_range = num_bins * age_spacing
     age_low = target_age - age_range*(3/4)
     age_high = target_age + age_range/4 - age_spacing
