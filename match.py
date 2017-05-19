@@ -207,25 +207,23 @@ if __name__ == '__main__':
     parser.add_argument('--nproc', default=mp.cpu_count(), type=int, help='Number of processes; defaults to number of CPUs')
     parser.add_argument('--runs', default=20, type=int, help='Number of runs; defaults to 20')
     parser.add_argument('--verbose', action='store_true', help='Print all process output')
-    parser.add_argument('--append', action='store_true', help='Append to existing HDF file')
-    parser.add_argument('--test', action='store_true', help='Test')
+    # parser.add_argument('--append', action='store_true', help='Append to existing HDF file')
+    parser.add_argument('--test', action='store_true', help='Run fake test just to see if it writes the file')
     args = parser.parse_args()
 
     print("Number of threads: {}".format(args.nproc))
     print("Using model {}".format(args.model))
 
     filt=['WFIRST_X625']
-    dist=[4, 6, 8, 10]
-    mass=[7]
-    #age = [8.5, 9.0, 9.5, 9.8, 10.0, 10.1]
-    #feh = [-2.2, -1.8, -1.3, -0.8, -0.5, -0.2, 0.0, 0.1]
-    age=['{:.2f}'.format(a) for a in [8.5, 9.0, 9.5, 9.8, 10.0, 10.1]]
-    feh=['{:.2f}'.format(f) for f in [-2.2, -1.8, -1.3, -0.8, -0.5, -0.2, 0.0, 0.1]]
+    dist=[4]#, 6, 8, 10]
+    mass=[6, 7, 8]
+    age=['{:.2f}'.format(a) for a in [8.5]]#, 9.0, 9.5, 9.8, 10.0, 10.1]]
+    feh=['{:.2f}'.format(f) for f in [-2.2]]#, -1.8, -1.3, -0.8, -0.5, -0.2, 0.0, 0.1]]
     filt_cycle = cycler(filt=filt)
-    dist_cycle = cycler(dist=dist)  # 6, 8, 
-    mass_cycle = cycler(mass=mass) # 6, 7, 8
-    age_cycle = cycler(age=age)  
-    feh_cycle = cycler(feh=feh) 
+    dist_cycle = cycler(dist=dist)
+    mass_cycle = cycler(mass=mass)
+    age_cycle = cycler(age=age)
+    feh_cycle = cycler(feh=feh)
     vals = ['massfrac', 'mass_before', 'mass_after', 'feh_agebin', 'feh_mean', 'nstars', 'fit']
     runs = list(np.arange(1, args.runs+1).astype(str)) + ['mean', 'median', 'std']
     param_cycle = (filt_cycle * dist_cycle * mass_cycle * feh_cycle * age_cycle).by_key()
@@ -236,10 +234,6 @@ if __name__ == '__main__':
     d = xr.DataArray( np.zeros( [len(coord_dict[k]) for k in keylist] ), dims=keylist,
         coords=coord_dict)
     dpath = '{}.nc'.format(args.model)
-    if (os.path.exists(dpath)) & args.append:
-        mode = 'a'
-    else:
-        mode = 'w'
     makefake(os.getcwd(), 'makefake.out', snr=5)
     for r in range(1, args.runs+1):
         print('Beginning run {}'.format(r))
@@ -252,28 +246,5 @@ if __name__ == '__main__':
             filter1, dist, mass, age, feh, values_dict = line
             for k,v in values_dict.items():
                 d.loc[filter1, dist, mass, age, feh, str(r), k] = v
-    d.to_netcdf('{}.nc'.format(args.model), mode=mode)
-        # print(out_dirs)
-        # for out_dir in out_dirs:
-        #     df = pd.read_csv(os.path.join(out_dir, 'zcombine.out'), delim_whitespace=True, usecols=[0,6,12],
-        #         skiprows=6, names=['age','feh','massfrac'], index_col='age')
-        #     info_dict = read_sfh_info(os.path.join(out_dir,'sfh_info.out'))
-            #hdfpath = os.path.join(out_dir.split(os.getcwd())[-1], 'run{}'.format(r))
-            #hdfstore.put(key=hdfpath, value=df, format='table')
-            #hdfstore.get_storer(hdfpath).attrs.metadata = info_dict
-        #print(hdfstore.keys())
-    #hdfstore.close()
-    # outlist = list(zip(*[param_cycle[k] for k in ['filt','dist','mass']]))
-    # hdf = pd.HDFStore('{}.hdf5'.format(args.model), complevel=9, complib='zlib', mode=mode)
-    # print('Writing output to HDF5 file')
-    # for i in outlist:
-    #     filter1, dist, mass = i
-    #     for n in nodes:
-    #         p = pan_dict[filter1][dist][mass][n]
-    #         p.loc['mean'] = p.mean(axis=0)
-    #         p.loc['median'] = p.median(axis=0)
-    #         p.loc['std'] = p.std(axis=0)
-    #         hdfpath='{}/dist{}/logsolMass{}/{}'.format(filter1, dist, mass, n)
-    #         hdf.put(key=hdfpath, value=p, format='table')
-    # hdf.close()
+    d.to_netcdf('{}.nc'.format(args.model), mode='w')
     print('Done!')
