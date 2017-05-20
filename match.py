@@ -206,7 +206,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process some integers.')
     parser.add_argument('--model', default='Padua2006_CO_AGB', help='Specify model',
         choices=['Padua2006_CO_AGB', 'MIST', 'MIST_fast', 'PARSEC'])
-    parser.add_argument('--nproc', default=mp.cpu_count(), type=int, help='Number of processes; defaults to number of CPUs')
+    parser.add_argument('--nproc', default=int(mp.cpu_count()/2), type=int,
+        help='Number of processes; defaults to number of CPUs')
     parser.add_argument('--runs', default=20, type=int, help='Number of runs; defaults to 20')
     parser.add_argument('--verbose', action='store_true', help='Print all process output')
     # parser.add_argument('--append', action='store_true', help='Append to existing HDF file')
@@ -216,7 +217,7 @@ if __name__ == '__main__':
     print("Number of threads: {}".format(args.nproc))
     print("Using model {}".format(args.model))
 
-    filt=['WFIRST_X606', 'WFIRST_X625', 'WFIRST_Z087']
+    filt=['WFIRST_X625'] # 'WFIRST_X606', , 'WFIRST_Z087'
     dist=[4, 6, 8, 10]
     mass=[6, 7, 8]
     age=['{:.2f}'.format(a) for a in [8.5, 9.0, 9.5, 9.8, 10.0, 10.1]]
@@ -241,12 +242,16 @@ if __name__ == '__main__':
         print('Beginning run {} out of {}'.format(r, args.runs+1))
         p = mp.Pool(args.nproc)
         func = partial(run, r=r, model=args.model, verbose=args.verbose, test=args.test)
-        output = p.map(func, inlist)
-        p.close()
-        p.join()
-        for line in output:
-            filter1, dist, mass, age, feh, values_dict = line
-            for k,v in values_dict.items():
-                d.loc[filter1, dist, mass, age, feh, str(r), k] = v
+        try:
+            output = p.map(func, inlist)
+            p.close()
+            p.join()
+            for line in output:
+                filter1, dist, mass, age, feh, values_dict = line
+                for k,v in values_dict.items():
+                    d.loc[filter1, dist, mass, age, feh, str(r), k] = v
+        except:
+            print('Run {} failed!'.format(r))
+            print(sys.exc_info())
     d.to_netcdf('{}.nc'.format(args.model), mode='w')
     print('Done!')
