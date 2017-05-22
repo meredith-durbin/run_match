@@ -187,6 +187,7 @@ def run(inlist, r, model, age_spacing=age_spacing, verbose=False, test=False):
     out_dir = os.path.join(os.getcwd(), filter1, 'dist{}'.format(dist),
         'logSolMass{}'.format(mass), 'logYr{:.1f}'.format(float(age)).replace('.','p'),
         'dex{:.1f}'.format(float(feh)).replace('.','p').replace('-','_'))
+    print(out_dir)
     os.makedirs(out_dir, exist_ok=True)
     if test:
         zc_dict, info_dict = run_test(out_dir, age)
@@ -237,9 +238,10 @@ if __name__ == '__main__':
     d = xr.DataArray( np.zeros( [len(coord_dict[k]) for k in keylist] ), dims=keylist,
         coords=coord_dict)
     dpath = '{}.nc'.format(args.model)
+    d.to_netcdf(dpath, mode='w')
     makefake(os.getcwd(), 'makefake.out', snr=5)
     for r in range(1, args.runs+1):
-        print('Beginning run {} out of {}'.format(r, args.runs+1))
+        print('Beginning run {} out of {}'.format(r, args.runs))
         p = mp.Pool(args.nproc)
         func = partial(run, r=r, model=args.model, verbose=args.verbose, test=args.test)
         try:
@@ -250,8 +252,10 @@ if __name__ == '__main__':
                 filter1, dist, mass, age, feh, values_dict = line
                 for k,v in values_dict.items():
                     d.loc[filter1, dist, mass, age, feh, str(r), k] = v
+            d.to_netcdf(dpath, mode='w')
         except:
             print('Run {} failed!'.format(r))
             print(sys.exc_info())
-    d.to_netcdf('{}.nc'.format(args.model), mode='w')
+            d.to_netcdf(dpath, mode='w')
+    #d.to_netcdf(dpath, mode='w')
     print('Done!')
