@@ -223,8 +223,8 @@ if __name__ == '__main__':
     dist=[4, 6, 8, 10]
     mass=[7] # 6, 8
     #age=['{:.2f}'.format(a) for a in [8.5, 9.0, 9.5, 9.8, 10.0, 10.1]]
-    age=['{:.2f}'.format(a) for a in [9.3]]#, 9.5, 9.7, 9.9, 10.0, 10.1]]
-    feh=['{:.2f}'.format(f) for f in [-2.2]]#, -1.8, -1.3, -0.8, -0.5, -0.2, 0.0, 0.1]]
+    age=['{:.2f}'.format(a) for a in [9.3, 9.5, 9.7, 9.9, 10.0, 10.1]]
+    feh=['{:.2f}'.format(f) for f in [-2.2, -1.8, -1.3, -0.8, -0.5, -0.2, 0.0, 0.1]]
     filt_cycle = cycler(filt=filt)
     dist_cycle = cycler(dist=dist)
     mass_cycle = cycler(mass=mass)
