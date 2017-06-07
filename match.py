@@ -16,8 +16,8 @@ import xarray as xr
 if 'match2.7' not in os.environ['PATH']:
     os.environ['PATH'] += ":/astro/store/phat2/projects/src/match2.7/bin"
 
-zp1 = 28
-zp2 = 28
+zp1 = 28.7
+zp2 = 29.2
 age_spacing = 0.05
 
 # makefake 100000 20 30 -2 5 29 28 -snr=5
@@ -140,20 +140,20 @@ def read_sfh_info(sfhinfofile):
     info_dict = {'nstars':nstars,'fit':fit}
     return info_dict
 
-def read_zc(zcfile, age):
+def read_zc(zcfile):
     df = pd.read_csv(zcfile, delim_whitespace=True, usecols=[0,6,12], skiprows=6,
-                     names=['age','feh','massfrac'], skipinitialspace=True, 
-                     dtype={'age': str, 'feh': np.float64, 'massfrac': np.float64})
-    df.set_index('age', inplace=True)
-    df = df.assign(massdiff=df.massfrac.diff(periods=-1))
-    df.massdiff.iloc[-1] = 1 - (df.massdiff.sum() + (1 - df.massfrac.iloc[0]))
-    df = df.assign(weighted_feh=df.massdiff*df.feh)
-    row = df.loc[age]
-    mass_after = df[df.index.astype(float)<(float(age)-0.01)].massdiff.sum()
-    mass_before = df[df.index.astype(float)>(float(age)+0.01)].massdiff.sum()
-    zc_dict = {'massfrac':row.massdiff, 'feh_agebin':row.feh, 'feh_mean':df.weighted_feh.sum(),
-        'mass_before':mass_before, 'mass_after':mass_after}
-    return zc_dict
+                     names=['age_bin', 'feh_meas', 'massfrac'], skipinitialspace=True, 
+                     dtype={'age_bin': str, 'feh_meas': np.float64, 'massfrac': np.float64})
+    df.set_index('age_bin', inplace=True)
+    # df = df.assign(massdiff=df.massfrac.diff(periods=-1))
+    # df.massdiff.iloc[-1] = 1 - (df.massdiff.sum() + (1 - df.massfrac.iloc[0]))
+    # df = df.assign(weighted_feh=df.massdiff*df.feh)
+    # row = df.loc[age]
+    # mass_after = df[df.index.astype(float)<(float(age)-0.01)].massdiff.sum()
+    # mass_before = df[df.index.astype(float)>(float(age)+0.01)].massdiff.sum()
+    # zc_dict = {'massfrac':row.massdiff, 'feh_agebin':row.feh, 'feh_mean':df.weighted_feh.sum(),
+    #     'mass_before':mass_before, 'mass_after':mass_after}
+    return df
 
 def run_core(out_dir, dmod, filter1, age, feh, sfr, model, verbose):
     shutil.copyfile(os.path.join(os.getcwd(),'makefake.out'),
@@ -165,18 +165,18 @@ def run_core(out_dir, dmod, filter1, age, feh, sfr, model, verbose):
     calcsfh(out_dir, 'calcsfh.par', 'makefake.out', 'fake.out', 'sfh.out', model, verbose=verbose)
     zcombine(out_dir, 'sfh.out', 'zcombine.out', verbose=verbose)
     os.remove(os.path.join(out_dir,'makefake.out'))
-    zc_dict = read_zc(os.path.join(out_dir, 'zcombine.out'), age)
-    info_dict = read_sfh_info(os.path.join(out_dir,'sfh_info.out'))
-    return zc_dict, info_dict
+    df = read_zc(os.path.join(out_dir, 'zcombine.out'))
+    #info_dict = read_sfh_info(os.path.join(out_dir,'sfh_info.out'))
+    return df
 
 def run_test(out_dir, age):
     shutil.copyfile(os.path.join(os.getcwd(),'sfh_info_test.out'),
         os.path.join(out_dir,'sfh_info_test.out'))
     shutil.copyfile(os.path.join(os.getcwd(),'zcombine_test.out'),
         os.path.join(out_dir,'zcombine_test.out'))
-    zc_dict = read_zc(os.path.join(out_dir, 'zcombine_test.out'), age)
-    info_dict = read_sfh_info(os.path.join(out_dir,'sfh_info_test.out'))
-    return zc_dict, info_dict
+    df = read_zc(os.path.join(out_dir, 'zcombine_test.out'))
+    #info_dict = read_sfh_info(os.path.join(out_dir,'sfh_info_test.out'))
+    return df
 
 def run(inlist, r, model, age_spacing=age_spacing, verbose=False, test=False):
     filter1, dist, mass, age, feh = inlist
@@ -187,24 +187,25 @@ def run(inlist, r, model, age_spacing=age_spacing, verbose=False, test=False):
     out_dir = os.path.join(os.getcwd(), filter1, 'dist{}'.format(dist),
         'logSolMass{}'.format(mass), 'logYr{:.1f}'.format(float(age)).replace('.','p'),
         'dex{:.1f}'.format(float(feh)).replace('.','p').replace('-','_'))
-    print(out_dir)
+    # print(out_dir)
     os.makedirs(out_dir, exist_ok=True)
     if test:
-        zc_dict, info_dict = run_test(out_dir, age)
+        df = run_test(out_dir, age)
     else:
-        zc_dict, info_dict = run_core(out_dir, dmod, filter1, age, feh, sfr, model, verbose)
-    values_dict = info_dict.copy()
-    values_dict.update(zc_dict)
-    for k,v in values_dict.items():
-        d.loc[filter1, dist, mass, age, feh, str(r), k] = v
-        print('    {} {} = {}'.format(runstr, k, v))
-    if test:
-        os.remove(os.path.join(out_dir,'sfh_info_test.out'))
-        os.remove(os.path.join(out_dir,'zcombine_test.out'))
-    return filter1, dist, mass, age, feh, values_dict
+        df = run_core(out_dir, dmod, filter1, age, feh, sfr, model, verbose)
+    # d.loc[filter1, dist, mass, age, feh, str(r), df.columns, df.index] = df
+    # values_dict = info_dict.copy()
+    # values_dict.update(zc_dict)
+    # for k,v in values_dict.items():
+    #     d.loc[filter1, dist, mass, age, feh, str(r), k] = v
+    #     print('    {} {} = {}'.format(runstr, k, v))
+    # if test:
+    #     os.remove(os.path.join(out_dir,'sfh_info_test.out'))
+    #     os.remove(os.path.join(out_dir,'zcombine_test.out'))
+    return filter1, dist, mass, age, feh, df
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Process some integers.')
+    parser = argparse.ArgumentParser()
     parser.add_argument('--model', default='Padua2006_CO_AGB', help='Specify model',
         choices=['Padua2006_CO_AGB', 'MIST', 'MIST_fast', 'PARSEC'])
     parser.add_argument('--nproc', default=int(mp.cpu_count()/2), type=int,
@@ -218,26 +219,29 @@ if __name__ == '__main__':
     print("Number of threads: {}".format(args.nproc))
     print("Using model {}".format(args.model))
 
-    filt=['WFIRST_X625'] # 'WFIRST_X606', , 'WFIRST_Z087'
-    dist=[4, 6, 8, 10]
-    mass=[6, 7, 8]
-    age=['{:.2f}'.format(a) for a in [8.5, 9.0, 9.5, 9.8, 10.0, 10.1]]
-    feh=['{:.2f}'.format(f) for f in [-2.2, -1.8, -1.3, -0.8, -0.5, -0.2, 0.0, 0.1]]
+    filt=['WFIRST_X606']#, 'WFIRST_X625', 'WFIRST_Z087'] # 'WFIRST_X606', , 'WFIRST_Z087'
+    dist=[4]#, 6, 8, 10]
+    mass=[7] # 6, 8
+    #age=['{:.2f}'.format(a) for a in [8.5, 9.0, 9.5, 9.8, 10.0, 10.1]]
+    age=['{:.2f}'.format(a) for a in [9.3]]#, 9.5, 9.7, 9.9, 10.0, 10.1]]
+    feh=['{:.2f}'.format(f) for f in [-2.2]]#, -1.8, -1.3, -0.8, -0.5, -0.2, 0.0, 0.1]]
     filt_cycle = cycler(filt=filt)
     dist_cycle = cycler(dist=dist)
     mass_cycle = cycler(mass=mass)
     age_cycle = cycler(age=age)
     feh_cycle = cycler(feh=feh)
-    vals = ['massfrac', 'mass_before', 'mass_after', 'feh_agebin', 'feh_mean', 'nstars', 'fit']
-    runs = list(np.arange(1, args.runs+1).astype(str)) + ['mean', 'median', 'std']
+    vals = ['feh_meas', 'massfrac']#'mass_before', 'mass_after', 'feh_agebin', 'feh_mean', 'nstars', 'fit']
+    age_bin = ['{:.2f}'.format(a) for a in np.arange(7.5, 10.2, 0.05)]
+    runs = np.arange(1, args.runs+1) # + ['mean', 'median', 'std']
     param_cycle = (filt_cycle * dist_cycle * mass_cycle * feh_cycle * age_cycle).by_key()
-    keylist = ['filt','dist','mass','age','feh','runs','vals']
-    dimlist = [filt, dist, mass, age, feh, runs, vals]
+    keylist = ['filt','dist','mass','age','feh','runs','age_bin','vals']
+    dimlist = [filt, dist, mass, age, feh, runs, age_bin, vals]
     coord_dict = {keylist[i]:dimlist[i] for i in range(len(keylist))}
-    inlist = list(zip(*[param_cycle[k] for k in keylist[:-2]]))
+    inlist = list(zip(*[param_cycle[k] for k in keylist[:-3]]))
     d = xr.DataArray( np.zeros( [len(coord_dict[k]) for k in keylist] ), dims=keylist,
         coords=coord_dict)
-    dpath = '{}.nc'.format(args.model)
+    d.loc[:,:,:,:,:,:,:,:] = np.nan
+    dpath = '{}_{}.nc'.format(args.model, '_'.join(filt))
     d.to_netcdf(dpath, mode='w')
     makefake(os.getcwd(), 'makefake.out', snr=5)
     for r in range(1, args.runs+1):
@@ -249,13 +253,18 @@ if __name__ == '__main__':
             p.close()
             p.join()
             for line in output:
-                filter1, dist, mass, age, feh, values_dict = line
-                for k,v in values_dict.items():
-                    d.loc[filter1, dist, mass, age, feh, str(r), k] = v
+                filter1, dist, mass, age, feh, df = line
+                # print(filter1, dist, mass, age, feh)
+                # print(df)
+                d.loc[filter1, dist, mass, age, feh, r, df.index[0]:df.index[-1], :] = df.values
+                # print(d.loc[filter1, dist, mass, age, feh, r, df.index[0]:df.index[-1], :])
+                # for k,v in values_dict.items():
+                #     d.loc[filter1, dist, mass, age, feh, str(r), k] = v
             d.to_netcdf(dpath, mode='w')
         except:
             print('Run {} failed!'.format(r))
-            print(sys.exc_info())
+            for i in sys.exc_info():
+                print(i)
             d.to_netcdf(dpath, mode='w')
     #d.to_netcdf(dpath, mode='w')
     print('Done!')
