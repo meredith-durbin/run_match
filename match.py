@@ -51,6 +51,7 @@ def makefake(out_dir, outfile, nstars=100000, mag_low=15,
 
     Outputs: fake artificial star test file
     '''
+    os.makedirs(out_dir, exist_ok=True)
     params = list(np.array([nstars, mag_low, mag_high, color_blue, color_red, 
                   completeness_1, completeness_2]).astype(str))
     flags = ['-{}={}'.format(k, v) for k, v in kwargs.items()]
@@ -216,7 +217,7 @@ if __name__ == '__main__':
     parser.add_argument('--verbose', action='store_true', help='Print all process output')
     # parser.add_argument('--append', action='store_true', help='Append to existing HDF file')
     parser.add_argument('--test', action='store_true', help='Run fake test just to see if it writes the file')
-    parser.add_argument('--systematic', default=None, help='Add systematic error')
+    parser.add_argument('--systematic', default=None, type=float, help='Add systematic error')
     args = parser.parse_args()
 
     print("Number of threads: {}".format(args.nproc))
