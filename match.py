@@ -239,7 +239,7 @@ if __name__ == '__main__':
     d.loc[:,:,:,:,:,:,:,:] = np.nan
     if systematic is not None:
         dpath = '{}_{}_sys{:.3f}'.format(args.model, '_'.join(filt),
-            systematic).replace('WFIRST_','').replace('.','p').replace('-','_')) + '.nc'
+            systematic).replace('WFIRST_','').replace('.','p').replace('-','_') + '.nc'
     else:
         dpath = '{}_{}.nc'.format(args.model, '_'.join(filt)).replace('WFIRST_','')
     d.to_netcdf(dpath, mode='w')
