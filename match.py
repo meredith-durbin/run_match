@@ -237,9 +237,9 @@ if __name__ == '__main__':
     d = xr.DataArray( np.zeros( [len(coord_dict[k]) for k in keylist] ), dims=keylist,
         coords=coord_dict)
     d.loc[:,:,:,:,:,:,:,:] = np.nan
-    if systematic is not None:
+    if args.systematic is not None:
         dpath = '{}_{}_sys{:.3f}'.format(args.model, '_'.join(filt),
-            systematic).replace('WFIRST_','').replace('.','p').replace('-','_') + '.nc'
+            args.systematic).replace('WFIRST_','').replace('.','p').replace('-','_') + '.nc'
     else:
         dpath = '{}_{}.nc'.format(args.model, '_'.join(filt)).replace('WFIRST_','')
     d.to_netcdf(dpath, mode='w')
