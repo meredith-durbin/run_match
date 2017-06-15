@@ -146,14 +146,6 @@ def read_zc(zcfile):
                      names=['age_bin', 'feh_meas', 'massfrac'], skipinitialspace=True, 
                      dtype={'age_bin': str, 'feh_meas': np.float64, 'massfrac': np.float64})
     df.set_index('age_bin', inplace=True)
-    # df = df.assign(massdiff=df.massfrac.diff(periods=-1))
-    # df.massdiff.iloc[-1] = 1 - (df.massdiff.sum() + (1 - df.massfrac.iloc[0]))
-    # df = df.assign(weighted_feh=df.massdiff*df.feh)
-    # row = df.loc[age]
-    # mass_after = df[df.index.astype(float)<(float(age)-0.01)].massdiff.sum()
-    # mass_before = df[df.index.astype(float)>(float(age)+0.01)].massdiff.sum()
-    # zc_dict = {'massfrac':row.massdiff, 'feh_agebin':row.feh, 'feh_mean':df.weighted_feh.sum(),
-    #     'mass_before':mass_before, 'mass_after':mass_after}
     return df
 
 def run_core(out_dir, dmod, filter1, age, feh, sfr, model, verbose, zp1, systematic=None):
@@ -245,7 +237,11 @@ if __name__ == '__main__':
     d = xr.DataArray( np.zeros( [len(coord_dict[k]) for k in keylist] ), dims=keylist,
         coords=coord_dict)
     d.loc[:,:,:,:,:,:,:,:] = np.nan
-    dpath = '{}_{}.nc'.format(args.model, ''.join(filt)).replace('WFIRST','')
+    if systematic is not None:
+        dpath = '{}_{}_sys{:.3f}'.format(args.model, '_'.join(filt),
+            systematic).replace('WFIRST_','').replace('.','p').replace('-','_')) + '.nc'
+    else:
+        dpath = '{}_{}.nc'.format(args.model, '_'.join(filt)).replace('WFIRST_','')
     d.to_netcdf(dpath, mode='w')
     for f in filt:
         if f in ['WFIRST_X606', 'WFIRST_X625']:
