@@ -155,13 +155,19 @@ def read_zc(zcfile):
     #     'mass_before':mass_before, 'mass_after':mass_after}
     return df
 
-def run_core(out_dir, dmod, filter1, age, feh, sfr, model, verbose, zp1):
+def run_core(out_dir, dmod, filter1, age, feh, sfr, model, verbose, zp1, systematic=None):
     shutil.copyfile(os.path.join(os.getcwd(), filter1, 'makefake.out'),
         os.path.join(out_dir,'makefake.out'))
     write_par('fake_template.par', 'fake.fakepar', out_dir, dmod, filter1, age,
         feh=feh, sfr=sfr, zp1=zp1)
     write_par('calcsfh_template.par', 'calcsfh.par', out_dir, dmod, filter1, age, zp1=zp1)
     fake(out_dir, 'fake.fakepar', 'fake.out', 'makefake.out', model, verbose=verbose)
+    if systematic is not None:
+        n = np.loadtxt(os.path.join(out_dir, 'fake.out'))
+        blue = n[:,0]
+        blue[blue < 99] += 0.1
+        n[:,0] = blue
+        np.savetxt(os.path.join(out_dir, 'fake.out'), n, delimiter=' ', fmt='%.3f')
     calcsfh(out_dir, 'calcsfh.par', 'makefake.out', 'fake.out', 'sfh.out', model, verbose=verbose)
     zcombine(out_dir, 'sfh.out', 'zcombine.out', verbose=verbose)
     os.remove(os.path.join(out_dir,'makefake.out'))
@@ -178,7 +184,7 @@ def run_test(out_dir):
     #info_dict = read_sfh_info(os.path.join(out_dir,'sfh_info_test.out'))
     return df
 
-def run(inlist, r, model, age_spacing=age_spacing, verbose=False, test=False):
+def run(inlist, r, model, age_spacing=age_spacing, verbose=False, test=False, systematic=None):
     filter1, dist, mass, age, feh = inlist
     if filter1 in ['WFIRST_X606', 'WFIRST_X625']:
         zp1 = 29.2
@@ -191,12 +197,13 @@ def run(inlist, r, model, age_spacing=age_spacing, verbose=False, test=False):
     out_dir = os.path.join(os.getcwd(), filter1, 'dist{}'.format(dist),
         'logSolMass{}'.format(mass), 'logYr{:.1f}'.format(float(age)).replace('.','p'),
         'dex{:.1f}'.format(float(feh)).replace('.','p').replace('-','_'))
-    # print(out_dir)
+    if systematic is not None:
+        out_dir = os.path.join(out_dir, '{:.3f}'.format(systematic).replace('.','p').replace('-','_'))
     os.makedirs(out_dir, exist_ok=True)
     if test:
         df = run_test(out_dir)
     else:
-        df = run_core(out_dir, dmod, filter1, age, feh, sfr, model, verbose, zp1)
+        df = run_core(out_dir, dmod, filter1, age, feh, sfr, model, verbose, zp1, systematic=systematic)
     return filter1, dist, mass, age, feh, df
 
 if __name__ == '__main__':
@@ -209,6 +216,7 @@ if __name__ == '__main__':
     parser.add_argument('--verbose', action='store_true', help='Print all process output')
     # parser.add_argument('--append', action='store_true', help='Append to existing HDF file')
     parser.add_argument('--test', action='store_true', help='Run fake test just to see if it writes the file')
+    parser.add_argument('--systematic', default=None, help='Add systematic error')
     args = parser.parse_args()
 
     print("Number of threads: {}".format(args.nproc))
@@ -247,7 +255,8 @@ if __name__ == '__main__':
     for r in range(1, args.runs+1):
         print('Beginning run {} out of {}'.format(r, args.runs))
         p = mp.Pool(args.nproc)
-        func = partial(run, r=r, model=args.model, verbose=args.verbose, test=args.test)
+        func = partial(run, r=r, model=args.model, verbose=args.verbose,
+            test=args.test, systematic=args.systematic)
         try:
             output = p.map(func, inlist)
             p.close()
