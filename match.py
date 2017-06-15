@@ -16,8 +16,8 @@ import xarray as xr
 if 'match2.7' not in os.environ['PATH']:
     os.environ['PATH'] += ":/astro/store/phat2/projects/src/match2.7/bin"
 
-zp1 = 28.7
-zp2 = 29.2
+zp1 = 29.2 # - 0.16, 0.646 = vega
+zp2 = 29.2 # - 1.272 = vega
 age_spacing = 0.05
 
 # makefake 100000 20 30 -2 5 29 28 -snr=5
@@ -155,12 +155,12 @@ def read_zc(zcfile):
     #     'mass_before':mass_before, 'mass_after':mass_after}
     return df
 
-def run_core(out_dir, dmod, filter1, age, feh, sfr, model, verbose):
-    shutil.copyfile(os.path.join(os.getcwd(),'makefake.out'),
+def run_core(out_dir, dmod, filter1, age, feh, sfr, model, verbose, zp1):
+    shutil.copyfile(os.path.join(os.getcwd(), filter1, 'makefake.out'),
         os.path.join(out_dir,'makefake.out'))
     write_par('fake_template.par', 'fake.fakepar', out_dir, dmod, filter1, age,
-        feh=feh, sfr=sfr)
-    write_par('calcsfh_template.par', 'calcsfh.par', out_dir, dmod, filter1, age)
+        feh=feh, sfr=sfr, zp1=zp1)
+    write_par('calcsfh_template.par', 'calcsfh.par', out_dir, dmod, filter1, age, zp1=zp1)
     fake(out_dir, 'fake.fakepar', 'fake.out', 'makefake.out', model, verbose=verbose)
     calcsfh(out_dir, 'calcsfh.par', 'makefake.out', 'fake.out', 'sfh.out', model, verbose=verbose)
     zcombine(out_dir, 'sfh.out', 'zcombine.out', verbose=verbose)
@@ -169,7 +169,7 @@ def run_core(out_dir, dmod, filter1, age, feh, sfr, model, verbose):
     #info_dict = read_sfh_info(os.path.join(out_dir,'sfh_info.out'))
     return df
 
-def run_test(out_dir, age):
+def run_test(out_dir):
     shutil.copyfile(os.path.join(os.getcwd(),'sfh_info_test.out'),
         os.path.join(out_dir,'sfh_info_test.out'))
     shutil.copyfile(os.path.join(os.getcwd(),'zcombine_test.out'),
@@ -180,6 +180,10 @@ def run_test(out_dir, age):
 
 def run(inlist, r, model, age_spacing=age_spacing, verbose=False, test=False):
     filter1, dist, mass, age, feh = inlist
+    if filter1 in ['WFIRST_X606', 'WFIRST_X625']:
+        zp1 = 29.2
+    else:
+        zp1 = 28.7
     dmod = 5*np.log10(dist*1e6)-5
     sfr = (10**mass) / (10**(float(age)+age_spacing) - 10**float(age))
     runstr = '    Run {}: {} at {} Mpc, {} logsolMass, age {}, [Fe/H] {}'.format(r, filter1, dist, mass, age, feh)
@@ -190,18 +194,9 @@ def run(inlist, r, model, age_spacing=age_spacing, verbose=False, test=False):
     # print(out_dir)
     os.makedirs(out_dir, exist_ok=True)
     if test:
-        df = run_test(out_dir, age)
+        df = run_test(out_dir)
     else:
-        df = run_core(out_dir, dmod, filter1, age, feh, sfr, model, verbose)
-    # d.loc[filter1, dist, mass, age, feh, str(r), df.columns, df.index] = df
-    # values_dict = info_dict.copy()
-    # values_dict.update(zc_dict)
-    # for k,v in values_dict.items():
-    #     d.loc[filter1, dist, mass, age, feh, str(r), k] = v
-    #     print('    {} {} = {}'.format(runstr, k, v))
-    # if test:
-    #     os.remove(os.path.join(out_dir,'sfh_info_test.out'))
-    #     os.remove(os.path.join(out_dir,'zcombine_test.out'))
+        df = run_core(out_dir, dmod, filter1, age, feh, sfr, model, verbose, zp1)
     return filter1, dist, mass, age, feh, df
 
 if __name__ == '__main__':
@@ -219,7 +214,7 @@ if __name__ == '__main__':
     print("Number of threads: {}".format(args.nproc))
     print("Using model {}".format(args.model))
 
-    filt=['WFIRST_X606', 'WFIRST_X625', 'WFIRST_Z087'] # 'WFIRST_X606', , 'WFIRST_Z087'
+    filt=['WFIRST_X606', 'WFIRST_X625']#, 'WFIRST_Z087']
     dist=[4, 6, 8, 10]
     mass=[7] # 6, 8
     #age=['{:.2f}'.format(a) for a in [8.5, 9.0, 9.5, 9.8, 10.0, 10.1]]
@@ -241,9 +236,14 @@ if __name__ == '__main__':
     d = xr.DataArray( np.zeros( [len(coord_dict[k]) for k in keylist] ), dims=keylist,
         coords=coord_dict)
     d.loc[:,:,:,:,:,:,:,:] = np.nan
-    dpath = '{}_{}.nc'.format(args.model, '_'.join(filt))
+    dpath = '{}_{}.nc'.format(args.model, ''.join(filt)).replace('WFIRST','')
     d.to_netcdf(dpath, mode='w')
-    makefake(os.getcwd(), 'makefake.out', snr=5)
+    for f in filt:
+        if f in ['WFIRST_X606', 'WFIRST_X625']:
+            completeness_1 = 29.2
+        else:
+            completeness_1 = 28.7
+        makefake(os.path.join(os.getcwd(), f), 'makefake.out', snr=5, completeness_1=completeness_1)
     for r in range(1, args.runs+1):
         print('Beginning run {} out of {}'.format(r, args.runs))
         p = mp.Pool(args.nproc)
@@ -254,12 +254,7 @@ if __name__ == '__main__':
             p.join()
             for line in output:
                 filter1, dist, mass, age, feh, df = line
-                # print(filter1, dist, mass, age, feh)
-                # print(df)
                 d.loc[filter1, dist, mass, age, feh, r, df.index[0]:df.index[-1], :] = df.values
-                # print(d.loc[filter1, dist, mass, age, feh, r, df.index[0]:df.index[-1], :])
-                # for k,v in values_dict.items():
-                #     d.loc[filter1, dist, mass, age, feh, str(r), k] = v
             d.to_netcdf(dpath, mode='w')
         except:
             print('Run {} failed!'.format(r))
