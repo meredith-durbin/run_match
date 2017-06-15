@@ -215,7 +215,7 @@ if __name__ == '__main__':
     print("Number of threads: {}".format(args.nproc))
     print("Using model {}".format(args.model))
 
-    filt=['WFIRST_X606', 'WFIRST_X625']#, 'WFIRST_Z087']
+    filt=['WFIRST_X625', 'WFIRST_Z087']
     dist=[4, 6, 8, 10]
     mass=[7] # 6, 8
     #age=['{:.2f}'.format(a) for a in [8.5, 9.0, 9.5, 9.8, 10.0, 10.1]]
