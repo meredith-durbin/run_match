@@ -158,7 +158,8 @@ def run_core(out_dir, dmod, filter1, age, feh, sfr, model, verbose, zp1, systema
     if systematic is not None:
         n = np.loadtxt(os.path.join(out_dir, 'fake.out'))
         blue = n[:,0]
-        blue[blue < 99] += 0.1
+        blue[blue < 99] += systematic
+        blue[blue > zp1] = 99.999
         n[:,0] = blue
         np.savetxt(os.path.join(out_dir, 'fake.out'), n, delimiter=' ', fmt='%.3f')
     calcsfh(out_dir, 'calcsfh.par', 'makefake.out', 'fake.out', 'sfh.out', model, verbose=verbose)
